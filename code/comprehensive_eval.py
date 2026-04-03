@@ -7,7 +7,8 @@
 # ]
 # ///
 
-"""Comprehensive Tiered Evaluation System for Type Checker Correctness (V2)."""
+"""
+Comprehensive Tiered Evaluation System for Type Checker Correctness."""
 
 import ast
 import sys
@@ -46,7 +47,7 @@ class TypeBug:
     line: int
     bug_type: str
     message: str
-    source: str
+    source: str  # phases(1,2,3)
     confidence: float
     details: dict = field(default_factory=dict)
 
@@ -99,7 +100,7 @@ class DebugArtifactCollector:
                 f.write(s["code"])
 
 
-# TIER 1: RUNTIME CRASH DETECTION
+# Phase 1: RUNTIME CRASH DETECTION
 
 TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError)
 
@@ -214,7 +215,7 @@ def run_tier1(
     debug: DebugArtifactCollector | None = None,
 ) -> list[TypeBug]:
     """
-    Tier 1: Execute code and catch type-related runtime exceptions.
+    Phase 1: Execute code and catch type-related runtime exceptions.
     - Walks the full traceback to find the root cause line
     - Inspects exception chains (__cause__ / __context__)
     - Isolates try/except bodies to surface swallowed type errors
@@ -245,13 +246,13 @@ def run_tier1(
     return bugs
 
 
-# TIER 3: PEP SPECIFICATION COMPLIANCE
+# Phase 3: PEP SPECIFICATION COMPLIANCE
 
 @dataclass
 class PEPRule:
     """A rule derived from Python typing PEPs."""
     pep_number: int
-    pattern: str
+    pattern: str  # regex pattern to match checker output or code
     rule_description: str
     correct_behavior: str  # "error" or "ok"
 
@@ -624,7 +625,7 @@ MODULE_IMPORT_RE = re.compile(
 
 def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
     """
-    Tier 3: Check against PEP specifications.
+    Phase 3: Check against PEP specifications.
     Analyzes the code and checker outputs to determine which checker
     follows the official Python typing specifications.
     Matches PEP rules line-by-line against checker output to avoid
@@ -669,10 +670,11 @@ def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
                 "confidence": 0.85,
             })
 
+    # check code patterns that should trigger specific rules
     code_findings = _analyze_code_patterns(source_code, checker_outputs)
     findings.extend(code_findings)
 
-    # Source-aware analysis: analyze AST independently, then judge each checker
+    # Source-aware analysis: analyze AST independently then judge each checker
     source_findings = _run_source_analysis(source_code, checker_outputs)
     findings.extend(source_findings)
 
@@ -681,7 +683,7 @@ def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
 
 def _run_source_analysis(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
     """
-    Run AST-level source analysis independently of checker output, then
+    Run AST-level source analysis independently of checker output then
     judge each checker by whether it reported errors near the violations found.
     """
     try:
@@ -778,6 +780,7 @@ def _checker_reports_error(output: str, checker: str = "") -> bool:
                 return True
         return False
 
+    # Generic fallback (unknown checker)
     output_lower = output.lower()
     return (
         "error" in output_lower and
@@ -800,10 +803,11 @@ def _analyze_code_patterns(source_code: str, checker_outputs: dict[str, str]) ->
                     ann = ast.unparse(node.annotation) if node.annotation else ""
                     if "Literal[" in ann:
                         # This is a Literal annotation, so checkers should flag str -> Literal
+                        # otherwise it is false negative
                         for checker, output in checker_outputs.items():
                             checker_says_error = _checker_reports_error(output, checker)
-                            # Per PEP 586, str so Literal should be an error
-                            # But pytifex needs to check if the SOURCE is str, not the value
+                            # str -> Literal should be an error based on PEP 586
+                            # But we need to check if the SOURCE is str, not the value
                             if "str" in output.lower() and "literal" in output.lower():
                                 findings.append({
                                     "checker": checker,
@@ -914,10 +918,10 @@ def extract_checker_error_lines(output: str) -> list[int]:
     return list(set(lines))
 
 
-# Typing constructs the Oracle (source_analysis.py) cannot evaluate.
+# Typing constructs that the Oracle (source_analysis.py) cannot evaluate.
 # If a source file uses any of these, the Oracle's silence does NOT mean
-# the file is violation-free, but  it means the Oracle is blind to those
-# constructs
+# the file is bug free, but rather it means the Oracle is blind to those
+# constructs.
 _UNCOVERED_TYPING_NAMES = frozenset({
     "TypeGuard", "TypeIs",
     "ParamSpec", "ParamSpecArgs", "ParamSpecKwargs", "Concatenate",
@@ -1011,7 +1015,7 @@ def determine_verdicts(
 
     Priority:
       1. Phase 0 Oracle (AST-based ground truth)
-      2. Phase 1 runtime crashes (highest confidence - runtime proof)
+      2. Phase 1 runtime crashes (highest confidence since runtime proof)
       3. Phase 2 Hypothesis bugs (high confidence — runtime proof via fuzzing)
       4. Phase 3 PEP specification compliance (checker-specific evidence)
       5. Phase 4 static flow analysis (checker-specific evidence)
@@ -1041,7 +1045,7 @@ def determine_verdicts(
         checker_reported_error = checker_error_status[checker]
         checker_error_lines = extract_checker_error_lines(output)
 
-        # --- Phase 1: runtime crashes ---
+        # --- Phase 1: runtime crashes (runtime proof above everything) ---
         if tier1_bugs_only:
             bugs_caught, bugs_missed = _check_bugs_against_checker(
                 tier1_bugs_only, checker_error_lines, function_spans,
@@ -1110,7 +1114,7 @@ def determine_verdicts(
         # --- Phase 3: PEP specification compliance ---
         checker_t3 = [f for f in tier3_findings if f.get("checker") == checker]
         if not checker_t3:
-            # Use also non-checker-specific findings that matched this checker's output
+            # Also use non-checker-specific findings that matched this checker's output
             checker_t3 = [
                 f for f in tier3_findings
                 if "checker" not in f and f.get("checker_behavior") is not None
@@ -1195,10 +1199,7 @@ def evaluate_comprehensive(
     debug: DebugArtifactCollector | None = None,
     debug_dir: str | None = None,
 ) -> EvaluationResult:
-    """
-    Run comprehensive tiered evaluation on a code example.
-    All phases always run and contribute evidence to the final verdict:
-    """
+    """Run comprehensive tiered evaluation on a code example."""
     try:
         from .hypothesis_tier2 import run_hypothesis_tier2
     except ImportError:
@@ -1465,8 +1466,7 @@ def evaluate_results_comprehensive(
     save_tests_dir: str | None = None,
 ) -> dict:
     """
-    Evaluate all files using the comprehensive phase system.
-
+    Evaluate all files using the comprehensive tiered system.
     Args:
         results_path: Path to results.json from the pipeline.
         save_tests_dir: If set, save ephemeral Tier 1/2 test snippets to this directory.
@@ -1492,11 +1492,11 @@ def evaluate_results_comprehensive(
     print("=" * 70)
     print("COMPREHENSIVE TIERED EVALUATION")
     print("=" * 70)
-    print("Tier 0: Oracle (AST-based ground truth)")
-    print("Tier 1: Runtime crash detection")
-    print("Tier 2: Hypothesis property-based testing")
-    print("Tier 3: PEP specification compliance")
-    print("Tier 4: Design differences (uncertain)")
+    print("Phase 0: Oracle (AST-based ground truth)")
+    print("Phase 1: Runtime crash detection")
+    print("Phase 2: Hypothesis property-based testing")
+    print("Phase 3: PEP specification compliance")
+    print("Phase 4: Design differences (uncertain)")
     print(f"Files to evaluate: {len(results)}")
     print("=" * 70)
     print()
@@ -1527,18 +1527,17 @@ def evaluate_results_comprehensive(
         tier_distribution[result.tier_reached] += 1
         collector.save(save_tests_dir, filename)
 
-        # Print summary
-        print(f"  Tier reached: {result.tier_reached}")
-        print(f"  Bugs: T1={len(result.tier1_bugs)}, T2={len(result.tier2_bugs)}, T3={len(result.tier3_findings)}")
+        print(f"  Phase reached: {result.tier_reached}")
+        print(f"  Bugs: Phase 1={len(result.tier1_bugs)}, Phase 2={len(result.tier2_bugs)}, Phase 3={len(result.tier3_findings)}")
 
         for checker, verdict in result.checker_verdicts.items():
             v = verdict["verdict"]
             tier = verdict.get("tier", "?")
             if v == "CORRECT":
-                print(f"  ✓ {checker}: CORRECT (tier {tier})")
+                print(f"  ✓ {checker}: CORRECT (phase {tier})")
                 summary_stats[checker]["correct"] += 1
             elif v == "INCORRECT":
-                print(f"  ✗ {checker}: INCORRECT (tier {tier})")
+                print(f"  ✗ {checker}: INCORRECT (phase {tier})")
                 summary_stats[checker]["incorrect"] += 1
             else:
                 print(f"  ? {checker}: UNCERTAIN")
@@ -1546,14 +1545,13 @@ def evaluate_results_comprehensive(
 
         print()
 
-    # Print summary
     print("=" * 70)
     print("SUMMARY")
     print("=" * 70)
 
-    print("\nTier distribution:")
+    print("\nPhase distribution:")
     for tier, count in tier_distribution.items():
-        print(f"  Tier {tier}: {count} files")
+        print(f"  Phase {tier}: {count} files")
 
     print(f"\n{'Checker':<12} {'Correct':>10} {'Incorrect':>10} {'Uncertain':>10}")
     print("-" * 44)
@@ -1564,7 +1562,7 @@ def evaluate_results_comprehensive(
 
     print("=" * 70)
 
-    # Collect uncertain cases. These will need agent to resolve.
+    # Collect uncertain cases that will be agent evaluated
     uncertain_cases: list[dict] = []
     for result, _ in all_results:
         for checker, verdict in result.checker_verdicts.items():
@@ -1605,11 +1603,11 @@ def evaluate_results_comprehensive(
             print(f"{checker:<12} {s['correct']:>10} {s['incorrect']:>10} {s['uncertain']:>10}")
         print("=" * 70)
 
-    # Write metrics back into results.json since agent run results needs to be saved.
+    # Write metrics back into results.json since the json has to contain the
+    # verdict of the agent on the UNCERTAIN files as well.
     with open(results_path, "w") as f:
         json.dump(data, f, indent=2)
 
-    # Save results
     output_dir = os.path.dirname(results_path)
     eval_path = os.path.join(output_dir, "evaluation_comprehensive.json")
 
@@ -1655,7 +1653,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python comprehensive_eval.py <results.json> [--save-tests <dir>]")
         print()
-        print("Comprehensive tiered evaluation system:")
+        print("Comprehensive phase evaluation system:")
         print("  Phase 1: Runtime crash detection (highest confidence)")
         print("  Phase 2: Mutation + Typeguard testing")
         print("  Phase 3: PEP specification compliance")
