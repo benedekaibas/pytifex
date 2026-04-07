@@ -9,29 +9,23 @@
 
 """
 Comprehensive Tiered Evaluation System for Type Checker Correctness (V2).
-
-Improvements over V1:
-- Full traceback walking (not just last frame)
-- Exception chain inspection (__cause__ / __context__)
-- AST-based try/except isolation to surface swallowed type errors
-
 This module implements a multi-tiered evaluation strategy:
 
-Tier 1: Runtime Crash Detection (~10% of cases)
+Phase 1: Runtime Crash Detection (~10% of cases)
     - Execute code and catch type-related exceptions
     - Highest confidence - proves actual bugs exist
 
-Tier 2: Hypothesis Property-Based Testing (~40% of cases)  
+Phase 2: Hypothesis Property-Based Testing (~40% of cases)
     - AST-driven call-site extraction and signature introspection
     - Hypothesis-generated inputs exercising real code paths
     - Proves type constraints matter in practice
 
-Tier 3: PEP Specification Compliance (~40% of cases)
+Phase 3: PEP Specification Compliance (~40% of cases)
     - Check against official Python typing PEPs
     - Pattern-based rules for common disagreement types
     - Authoritative ground truth
 
-Tier 4: Design Differences (~10% of cases)
+Phase 4: Design Differences (~10% of cases)
     - Accept that some disagreements are philosophical
     - Document as legitimate design choices
 """
