@@ -1,0 +1,101 @@
+"""
+Targeted Test Suite — Pattern-Based Type Error Detection
+
+Source: paramspec-type-self-classmethod.py
+Patterns detected: 1
+    - callable_param (3 tests)
+Test cases generated: 3
+"""
+
+# --- Original source ---
+
+from typing import TypeVar, ParamSpec, Callable, Self, Type
+from functools import wraps
+
+P = ParamSpec('P')
+R = TypeVar('R')
+
+def logging_factory_decorator(cls_method: Callable[P, R]) -> Callable[P, R]:
+    """
+    A decorator that logs calls to a class method (factory).
+    It uses ParamSpec to preserve the signature.
+    """
+    @wraps(cls_method)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        print(f"LOG: Calling factory method '{cls_method.__name__}' with args={args}, kwargs={kwargs}")
+        return cls_method(*args, **kwargs)
+    return wrapper
+
+class Item:
+    def __init__(self, id: int, name: str) -> None:
+        self.id = id
+        self.name = name
+
+    def __str__(self) -> str:
+        return f"Item(id={self.id}, name='{self.name}')"
+
+    @classmethod
+    @logging_factory_decorator
+    def create_item(cls: Type[Self], item_id: int, item_name: str) -> Self:
+        """
+        A class method acting as a factory.
+        `cls` is `Type[Self]`, and it's called to create an instance of `Self`.
+        Checkers must correctly infer `P` for `logging_factory_decorator` from `create_item`'s signature
+        and verify that `cls(item_id, item_name)` aligns with `Item.__init__(self, id, name)`.
+        Disagreements can arise from `ParamSpec` interaction with `Type[Self]` in `classmethod`.
+        """
+        return cls(item_id, item_name)
+
+if __name__ == "__main__":
+    my_item = Item.create_item(101, "Widget")
+    print(my_item)
+
+    # This should be a type error (wrong argument type for item_name)
+    # Item.create_item(102, 123)
+
+# --- Test infrastructure ---
+BUGS = []
+_SOURCE_LINE_OFFSET = 11
+
+# --- Test cases ---
+
+def test_logging_factory_decorator_none_callable():
+    """Call logging_factory_decorator with None for Callable param 'cls_method'."""
+    try:
+        logging_factory_decorator(cls_method=None)
+    except (TypeError, ValueError, AttributeError, KeyError) as e:
+        BUGS.append({"line": 7, "type": type(e).__name__, "error": str(e)[:200], "test": "none_callable"})
+
+
+def test_logging_factory_decorator_string_callable():
+    """Call logging_factory_decorator with a string for Callable param 'cls_method'."""
+    try:
+        logging_factory_decorator(cls_method="not_callable")
+    except (TypeError, ValueError, AttributeError, KeyError) as e:
+        BUGS.append({"line": 7, "type": type(e).__name__, "error": str(e)[:200], "test": "string_callable"})
+
+
+def test_logging_factory_decorator_wrong_arity_callable():
+    """Call logging_factory_decorator with a zero-arg callable for param 'cls_method'."""
+    try:
+        logging_factory_decorator(cls_method=lambda: None)
+    except (TypeError, ValueError, AttributeError, KeyError) as e:
+        BUGS.append({"line": 7, "type": type(e).__name__, "error": str(e)[:200], "test": "wrong_arity_callable"})
+
+
+# --- Runner ---
+if __name__ == "__main__":
+    import sys
+    _test_fns = [(name, fn) for name, fn in list(globals().items()) if name.startswith("test_") and callable(fn)]
+    print(f"Running {len(_test_fns)} targeted tests...")
+    _passed = 0
+    _failed = 0
+    for _name, _fn in _test_fns:
+        try:
+            _fn()
+            _passed += 1
+        except Exception as _e:
+            _failed += 1
+    print(f"Passed: {_passed}, Failed: {_failed}, Bugs found: {len(BUGS)}")
+    for _bug in BUGS:
+        print(f"  BUG L{_bug['line']} [{_bug['type']}] {_bug['error']}")
