@@ -1,7 +1,7 @@
 # Architecture
 
 Pytifex is a hybrid system that orchestrates cloud-based LLM generation with
-local type-checker execution and multi-tiered evaluation. This page walks
+local type-checker execution and multi-phased evaluation. This page walks
 through every major subsystem so you can orient yourself in the codebase
 quickly.
 
@@ -23,17 +23,17 @@ Pytifex splits work between two execution domains:
 ```text
 ┌──────────────────────────────────────────────────────────┐
 │                     Cloud (Gemini)                       │
-│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐ │
-│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │ │
-│  └─────────────┘  └────────────┘  └───────────────────┘ │
+│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐  │
+│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │  │
+│  └─────────────┘  └────────────┘  └───────────────────┘  │
 └────────────────────────┬─────────────────────────────────┘
                          │ API calls
 ┌────────────────────────▼─────────────────────────────────┐
 │                   Local Machine                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐ │
-│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │ │
-│  │   Mining     │  │  Execution   │  │  Evaluation    │ │
-│  └──────────────┘  └──────────────┘  └────────────────┘ │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │  │
+│  │   Mining     │  │  Execution   │  │  Evaluation    │  │
+│  └──────────────┘  └──────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -132,10 +132,10 @@ determines which checker is correct. See the next section for details.
 
 ## Evaluation System (`comprehensive_eval.py`)
 
-Evaluation proceeds tier-by-tier from highest confidence to lowest. Once a tier
-produces a confident verdict, later tiers are skipped.
+Evaluation proceeds phase-by-phase from highest confidence to lowest. Once a phase
+produces a confident verdict, later phases are skipped.
 
-### Tier 0 — Oracle
+### Phase 0 — Oracle
 
 **Modules:** `oracle.py`, `source_analysis.py`
 
@@ -156,7 +156,7 @@ for finding in oracle_findings:
             matched = True
 ```
 
-### Tier 1 — Runtime Crash Detection
+### Phase 1 — Runtime Crash Detection
 
 Executes the source code in a sandboxed subprocess and catches runtime
 exceptions that signal a genuine type error:
@@ -165,13 +165,13 @@ exceptions that signal a genuine type error:
 - `KeyError`
 - `AttributeError`
 
-The tier walks the **full traceback** including exception chains
+The tool walks the **full traceback** including exception chains
 (`__cause__` / `__context__`) and also **isolates `try`/`except` bodies** to
 surface swallowed errors.
 
 **Confidence:** 0.95–1.0
 
-### Tier 2 — Hypothesis Property-Based Testing
+### Phase 2 — Hypothesis Property-Based Testing
 
 **Module:** `hypothesis_tier2.py`
 
@@ -188,9 +188,9 @@ def test(args):
     func(*args)                              # any TypeError ⇒ real bug
 ```
 
-Targeted tests from `targeted_tests.py` are also executed in this tier.
+Targeted tests from `targeted_tests.py` are also executed in this phase.
 
-### Tier 3 — PEP Specification Compliance
+### Phase 3 — PEP Specification Compliance
 
 Matches a curated set of `PEP_RULES` (regex patterns mapped to expected
 checker behaviour) against each checker's output lines. Covered PEPs:
@@ -198,7 +198,7 @@ checker behaviour) against each checker's output lines. Covered PEPs:
 > 484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673,
 > 675, 681, 692, 695, 696, 698, 705, 742
 
-### Tier 4 — Static Flow Analysis
+### Phase 4 — Static Flow Analysis
 
 **Module:** `static_tier4.py`
 
@@ -219,53 +219,8 @@ Any example still marked `UNCERTAIN` after all tiers is forwarded to a
 
 ---
 
-## File Structure
+### Disclaimer
 
-```text
-src/tc_disagreement/
-├── main.py              # CLI entry point & argument parsing
-├── pipeline.py          # Core generation/filtering pipeline
-├── github_issues.py     # GitHub issue mining
-├── prompts.py           # LLM prompt construction
-├── patterns.py          # Divergence pattern definitions
-├── agent.py             # Gemini API client (Pydantic model)
-├── run_checkers.py      # Type checker execution
-├── config.py            # CHECKERS dict and BASE_GEN_DIR
-├── comprehensive_eval.py # Multi-tier evaluation orchestrator
-├── oracle.py            # Tier 0: AST-based PEP oracle
-├── source_analysis.py   # AST analysis for PEP violations
-├── hypothesis_tier2.py  # Tier 2: Hypothesis property testing
-├── targeted_tests.py    # Targeted test generation
-├── static_tier4.py      # Tier 4: Static flow analysis
-├── code_metrics.py      # Code complexity metrics
-├── generate_json.py     # LLM output parsing
-├── eval.py              # Legacy LLM-based evaluation
-├── scoring.py           # Scoring logic
-└── rederive_statuses.py # Status re-derivation
-```
+Since Pytifex is a research tool under heavy development the architecture of the evaluation
+can change in the future.
 
----
-
-## Output Structure
-
-Each pipeline run produces a timestamped directory under `generated_examples/`:
-
-```text
-generated_examples/
-└── 2026-04-08_12-30-00/
-    ├── source_files/                      # .py files for each disagreement
-    ├── tests/                             # Ephemeral Tier 1/2 test snippets
-    ├── results.json                       # Raw checker outputs and statuses
-    └── evaluation_comprehensive.json      # Tiered evaluation verdicts
-```
-
-- **`source_files/`** — One `.py` file per divergent example, named by index
-  (e.g., `example_001.py`).
-- **`tests/`** — Throwaway test scripts generated by Tier 1 (crash detection)
-  and Tier 2 (Hypothesis). These are kept for reproducibility but are not part
-  of the permanent test suite.
-- **`results.json`** — Maps each example to the raw stdout/stderr and
-  exit-code status from every checker.
-- **`evaluation_comprehensive.json`** — The final tiered verdicts, including
-  which tier resolved each example, the confidence score, and which checker(s)
-  were deemed correct.

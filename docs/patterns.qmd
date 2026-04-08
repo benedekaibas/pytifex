@@ -14,7 +14,7 @@ Understanding these patterns matters because:
 
 ## The 10 Built-In Patterns
 
-Patterns are defined as `DivergencePattern` dataclass instances in [`patterns.py`](https://github.com/benedekaibas/pytifex-demo/blob/main/src/tc_disagreement/patterns.py):
+Patterns are defined as `DivergencePattern` dataclass instances in [`patterns.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/patterns.py):
 
 ```python
 @dataclass
@@ -169,7 +169,7 @@ def render(shape: Drawable) -> None:
 render(Circle())  # Does Circle satisfy Drawable? Checkers disagree.
 ```
 
-Some checkers require the default value to match exactly; others only check the signature shape.
+Some checkers require the default value to match exactly while others only check the signature shape.
 
 ### TypedDict with mixed Required/NotRequired (`typed-dict-total`)
 
@@ -231,3 +231,4 @@ When choosing a new pattern, look for:
 - **Closed issues** in [mypy](https://github.com/python/mypy/issues), [ty](https://github.com/astral-sh/ty/issues), or [pyrefly](https://github.com/facebook/pyrefly/issues) where the fix was controversial or spec-dependent.
 - **PEP sections** with phrases like "implementations may choose to…" or "this is left unspecified."
 - **Areas where PEPs interact** — e.g., `ParamSpec` + `Protocol`, `TypedDict` + `Generic`.
+

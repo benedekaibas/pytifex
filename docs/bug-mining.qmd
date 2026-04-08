@@ -34,6 +34,8 @@ REPOS = {
 }
 ```
 
+**NOTE**: Pytifex does not evaluate `pyright`, but because of its rich nature of GitHub issues it provides a valuable source for code examples.
+
 ### Filtering to Confirmed Bugs
 
 Not all closed issues are real bugs — many are "won't fix", duplicates, or feature requests. Pytifex filters using the GitHub `state_reason` field:
@@ -192,11 +194,3 @@ The refined code is re-checked. This loop repeats up to `max_refinements` times 
 | `--no-github` | Use pattern-based generation only (no seed mining) |
 | `--model gemini-2.5-pro` | Use a more capable model for better hit rate |
 
-### Typical hit rates
-
-| Configuration | Approximate hit rate |
-|--------------|---------------------|
-| Seeds + `gemini-2.5-flash` | 30–60% |
-| Seeds + `gemini-2.5-pro` | 50–70% |
-| No seeds (pattern-only) | 15–30% |
-| With refinement (2 rounds) | +10–15% additional recovery |

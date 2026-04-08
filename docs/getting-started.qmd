@@ -9,15 +9,18 @@
 ## Quick Start
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/benedekaibas/pytifex-demo.git
-cd pytifex-demo/src/tc_disagreement
+# 1. Install pytifex through PyPi (https://pypi.org/project/pytifex/)
+pip install pytifex
 
 # 2. Set your API key
 export GEMINI_API_KEY=your_key
 
 # 3. Run the full pipeline
-uv run main.py --num-examples 5
+uv run pytifex --num-examples 5
+
+*or*
+
+uv run pytifex
 ```
 
 That's it. `uv` automatically installs all dependencies (including all four type checkers) on first run.
@@ -43,11 +46,12 @@ export GITHUB_TOKEN=ghp_your_token    # raises limit to 5,000/hour
 Or skip GitHub entirely:
 
 ```bash
-uv run main.py --no-github
+uv run pytifex --no-github
 ```
 
 ## Next Steps
 
-- **[Installation](installation.qmd)** — Detailed setup including manual installation without `uv`
+- **[Installation](installation.qmd)** — Detailed setup including manual installation
 - **[Usage](usage.qmd)** — Full CLI reference, commands, and options
 - **[Architecture](architecture.qmd)** — Understand how the pipeline works under the hood
+

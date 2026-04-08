@@ -7,11 +7,11 @@ Pytifex runs four Python type checkers and compares their results to find disagr
 | Checker | Version | Command | Project |
 |---------|---------|---------|---------|
 | **mypy** | 1.19.0 | `mypy <file>` | [mypy-lang.org](https://mypy-lang.org/) |
-| **pyrefly** | 0.44.2 | `pyrefly check <file>` | [github.com/facebook/pyrefly](https://github.com/facebook/pyrefly) |
-| **zuban** | 0.3.0 | `zuban check <file>` | Experimental checker |
+| **pyrefly** | 0.60.0 | `pyrefly check <file>` | [github.com/facebook/pyrefly](https://github.com/facebook/pyrefly) |
+| **zuban** | 0.3.0 | `zuban check <file>` | [github.com/zubanls/zuban](https://github.com/zubanls/zuban) |
 | **ty** | 0.0.1-alpha.32 | `ty check <file>` | [github.com/astral-sh/ty](https://github.com/astral-sh/ty) |
 
-All four are configured in a single dict in [`config.py`](https://github.com/benedekaibas/pytifex-demo/blob/main/src/tc_disagreement/config.py):
+All four are configured in a single dict in [`config.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py):
 
 ```python
 CHECKERS = {
@@ -68,7 +68,8 @@ for tool_name, output in file_result["outputs"].items():
 
 ## Output Parsing
 
-Each checker has a different output format, so Pytifex uses checker-specific parsing in `_checker_reports_error()` (defined in both `comprehensive_eval.py` and `rederive_statuses.py`). The function returns `True` if the checker reported a type error, `False` otherwise.
+Each checker has a different output format, so Pytifex uses checker-specific parsing in `_checker_reports_error()` (defined in both
+`comprehensive_eval.py` and `rederive_statuses.py`). The function returns `True` if the checker reported a type error, `False` otherwise.
 
 ### mypy / zuban
 
@@ -143,7 +144,7 @@ Every file × checker pair gets a status of `"ok"` or `"error"`:
 status = "error" if checker_reports_error(output, checker_name) else "ok"
 ```
 
-These statuses are stored in `results.json` and are the basis for detecting *disagreements* — cases where checkers assign different statuses to the same file.
+These statuses are stored in `results.json` and are the basis for detecting *disagreements*.
 
 If you suspect the statuses in an existing `results.json` are stale (e.g., after updating the parsing logic), you can re-derive them:
 

@@ -1,6 +1,6 @@
 # Pytifex — Automated Differential Testing for Python Type Checkers
 
-[![GitHub](https://img.shields.io/badge/github-pytifex--demo-blue?logo=github)](https://github.com/benedekaibas/pytifex-demo)
+[![GitHub](https://img.shields.io/badge/github-pytifex-blue?logo=github)](https://github.com/benedekaibas/pytifex)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE)
 
@@ -31,12 +31,11 @@ Pytifex automatically discovers disagreements between Python type checkers by mi
 ## Quick Start
 
 ```bash
-git clone https://github.com/benedekaibas/pytifex-demo.git
-cd pytifex-demo/src/tc_disagreement
+pip install pytifex
 
 export GEMINI_API_KEY=your_key
 
-uv run main.py --num-examples 5
+uv run pytifex
 ```
 
 > **Note:** Pytifex is a research tool developed for a senior comprehensive project. It implements a bug-seeded mutation methodology for proactively finding type checker bugs before users encounter them.
@@ -49,3 +48,4 @@ uv run main.py --num-examples 5
 - **[Evaluation System](evaluation.qmd)** — Multi-tiered evaluation: runtime, Hypothesis, PEP specs, static analysis
 - **[Type Checkers](checkers.qmd)** — How checkers are invoked, output parsed, and how to add new ones
 - **[Divergence Patterns](patterns.qmd)** — The 10 built-in edge-case patterns and how to add more
+

@@ -8,14 +8,16 @@
 ## Setup
 
 ```bash
-git clone https://github.com/benedekaibas/pytifex-demo.git
-cd pytifex-demo/src/tc_disagreement
+pip install pytifex
 
 # Required
 export GEMINI_API_KEY=your_gemini_api_key
 
-# Optional — higher GitHub API rate limits (60 → 5000 req/hr)
+# Optional — higher GitHub API rate limits
 export GITHUB_TOKEN=ghp_your_github_token
+
+# Run Pytifex and generate tricky code examples that lead to disagreements between Type checkers
+uv run pytifex
 ```
 
 The type checkers (mypy, pyrefly, zuban, ty) are **automatically installed** by `uv` when you run the tool.
@@ -27,10 +29,3 @@ The type checkers (mypy, pyrefly, zuban, ty) are **automatically installed** by 
 | `GEMINI_API_KEY` | **Yes** | Google Gemini API key for code generation |
 | `GITHUB_TOKEN` | No | GitHub token for higher API rate limits |
 
-## Manual Type Checker Installation
-
-If you prefer not to use `uv`:
-
-```bash
-pip install mypy==1.19.0 pyrefly==0.44.2 zuban==0.3.0 ty==0.0.1a32
-```

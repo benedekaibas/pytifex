@@ -15,30 +15,30 @@ All tiers always run and contribute evidence. The final verdict is determined by
 ## Evaluation Tiers
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│  Tier 0: Oracle — AST-based PEP violation detection         │
-│  Confidence: 0.85–0.95                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 1: Runtime Crash Detection                            │
-│  Confidence: 0.95–1.0                                       │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 2: Hypothesis Property-Based Testing                  │
-│  Confidence: 0.85                                           │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 3: PEP Specification Compliance                       │
-│  Confidence: 0.80–0.85                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 4: Static Flow Analysis                               │
-│  Confidence: 0.80                                           │
-├─────────────────────────────────────────────────────────────┤
-│  Agent Resolution: LLM-based verdict for UNCERTAIN cases    │
-│  Confidence: 0.70                                           │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Phase 0: Oracle — AST-based PEP violation detection         │
+│  Confidence: 0.85–0.95                                       │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 1: Runtime Crash Detection                            │
+│  Confidence: 0.95–1.0                                        │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 2: Hypothesis Property-Based Testing                  │
+│  Confidence: 0.85                                            │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 3: PEP Specification Compliance                       │
+│  Confidence: 0.80–0.85                                       │
+├──────────────────────────────────────────────────────────────┤
+│  Phsae 4: Static Flow Analysis                               │
+│  Confidence: 0.80                                            │
+├──────────────────────────────────────────────────────────────┤
+│  Agent Resolution: LLM-based verdict for UNCERTAIN cases     │
+│  Confidence: 0.70                                            │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Tier 0 — Oracle (`oracle.py`)
+## Phase 0 — Oracle (`oracle.py`)
 
 The oracle performs **AST-based source analysis** to find violations that MUST exist according to PEP specifications, independent of any checker output.
 
@@ -93,7 +93,7 @@ The oracle covers 30+ rule categories including:
 
 ---
 
-## Tier 1 — Runtime Crash Detection
+## Phase 1 — Runtime Crash Detection
 
 Executes the generated code and catches type-related runtime exceptions:
 
@@ -103,7 +103,7 @@ TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError)
 
 ### Full Traceback Walking
 
-Tier 1 doesn't just catch the top-level exception — it walks the **entire traceback** and inspects **exception chains** (`__cause__` / `__context__`):
+Phase 1 doesn't just catch the top-level exception — it walks the **entire traceback** and inspects **exception chains** (`__cause__` / `__context__`):
 
 ```python
 def _collect_chained_exceptions(exc):
@@ -118,7 +118,7 @@ def _collect_chained_exceptions(exc):
 
 ### Isolating Swallowed Errors
 
-Code often contains `try`/`except` blocks that catch and hide type errors. Tier 1 uses AST analysis to find `try` bodies and re-executes them in isolation:
+Code often contains `try`/`except` blocks that catch and hide type errors. Phase 1 uses AST analysis to find `try` bodies and re-executes them in isolation:
 
 ```python
 try_bodies = _extract_try_bodies(source_code)
@@ -136,7 +136,7 @@ for start_line, end_line, body_source in try_bodies:
 
 ---
 
-## Tier 2 — Hypothesis Property-Based Testing (`hypothesis_tier2.py`)
+## Phase 2 — Hypothesis Property-Based Testing (`hypothesis_tier2.py`)
 
 Uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs matching declared type annotations and run them through the actual code.
 
@@ -163,7 +163,7 @@ In addition to Hypothesis fuzzing, `targeted_tests.py` generates specific test c
 
 ---
 
-## Tier 3 — PEP Specification Compliance
+## Phase 3 — PEP Specification Compliance
 
 Matches a curated list of `PEP_RULES` against each checker's output. Each rule is a regex pattern paired with the expected behavior:
 
@@ -196,7 +196,7 @@ PEPRule(
 
 ### Noise Filtering
 
-The tier skips lines that are notes, info messages, or import-related errors:
+Pyitex skips lines that are notes, info messages, or import-related errors:
 
 ```python
 for text_line in output.splitlines():
@@ -215,7 +215,7 @@ for text_line in output.splitlines():
 
 ---
 
-## Tier 4 — Static Flow Analysis (`static_tier4.py`)
+## Phase 4 — Static Flow Analysis (`static_tier4.py`)
 
 A collection of lightweight AST-based checks that run when earlier tiers didn't resolve the verdict:
 
@@ -232,7 +232,7 @@ A collection of lightweight AST-based checks that run when earlier tiers didn't 
 
 ## Agent Resolution
 
-Any verdict still `UNCERTAIN` after all tiers is forwarded to a Gemini API call for LLM-based resolution:
+Any verdict still `UNCERTAIN` after all phase is forwarded to a Gemini API call for LLM-based resolution:
 
 ```python
 prompt = f"""
@@ -295,3 +295,4 @@ Results are saved to `evaluation_comprehensive.json`:
 | `CORRECT` | Checker accurately identified all issues (or correctly reported no issues) |
 | `INCORRECT` | Checker missed a real bug (false negative) or flagged correct code (false positive) |
 | `UNCERTAIN` | Not enough evidence to determine correctness |
+
