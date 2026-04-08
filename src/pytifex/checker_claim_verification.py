@@ -22,7 +22,7 @@ Handles edge cases:
 - Multiple claims per file
 
 Usage:
-    from checker_claim_verification import run_claim_verification
+    from .checker_claim_verification import run_claim_verification
     results = run_claim_verification(source_code, checker_outputs)
 """
 

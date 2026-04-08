@@ -9,7 +9,7 @@ Only emits high-confidence findings for definitive violations — never
 flags ambiguous cases. Uses only locally-defined symbols for resolution.
 
 Usage:
-    from source_analysis import analyze_source
+    from .source_analysis import analyze_source
     findings = analyze_source(source_code)
 """
 

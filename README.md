@@ -40,12 +40,14 @@ Pytifex tests the following type checkers:
 
 **Prerequisites:** Python 3.12+, [uv](https://docs.astral.sh/uv/)
 
-```bash
-git clone https://github.com/benedekaibas/pytifex-demo.git
-cd pytifex-demo/src/tc_disagreement
+To download and run Pytifex, please follow the following commands:
 
-export GEMINI_API_KEY=your_key        # Required
-export GITHUB_TOKEN=ghp_your_token    # Optional
+```bash
+pip install pytifex
+
+*or*
+
+pip3 install pytifex
 ```
 
 **NOTE**: Type checkers are automatically installed by `uv` when you run the tool.
@@ -53,6 +55,9 @@ export GITHUB_TOKEN=ghp_your_token    # Optional
 ## Usage
 
 ```bash
+# You have to set your Google Gemini API key in your terminal window
+export GEMINI_API_KEY="your-api-key-here"
+
 # Run the full pipeline: mine → generate → filter → evaluate
 uv run main.py
 
