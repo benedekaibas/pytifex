@@ -1,6 +1,6 @@
 [project]
 name = "pytifex"
-version = "0.1.0"
+version = "0.1.1"
 description = "Automated mutation-based differential testing for Python type checkers"
 readme = "README.md"
 license = "MIT"
@@ -27,7 +27,7 @@ dev = [
 ]
 
 [project.scripts]
-pytifex-demo = "pytifex.main:main"
+pytifex = "pytifex.main:main"
 
 [project.urls]
 Homepage = "https://github.com/benedekaibas/pytifex"
