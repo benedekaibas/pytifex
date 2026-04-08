@@ -1,0 +1,255 @@
+{
+  "timestamp": "2026-04-07T14:10:11.230653",
+  "model_used": "gemini-2.5-flash",
+  "total_generated": 15,
+  "disagreements_found": 10,
+  "success_rate": "66.7%",
+  "checkers_used": [
+    "mypy",
+    "pyrefly",
+    "zuban",
+    "ty"
+  ],
+  "results": [
+    {
+      "filename": "self-generic-list-t.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/self-generic-list-t.py",
+      "seed_issue": "https://github.com/zubanls/zuban/issues/197",
+      "metrics": {
+        "loc": 16,
+        "num_functions": 2,
+        "type_imports": 3,
+        "type_density": 0.0625,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "Success: no issues found in 1 source file",
+        "pyrefly": "INFO 0 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "error[invalid-method-override]: Invalid override of method `process_items`\n  --> _pytifex_temp_3317850.py:13:9\n   |\n12 | class ConcreteProcessor(AbstractProcessor[T]):\n13 |     def process_items(self, data: list[T]) -> list[Self]:\n   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Definition is incompatible with `AbstractProcessor.process_items`\n14 |         # A real implementation would process data. For type checking,\n15 |         # we focus on the return type compatibility.\n   |\n  ::: _pytifex_temp_3317850.py:8:9\n   |\n 6 | class AbstractProcessor(Generic[T], ABC):\n 7 |     @abstractmethod\n 8 |     def process_items(self, data: list[T]) -> list[Self]:\n   |         ------------------------------------------------ `AbstractProcessor.process_items` defined here\n 9 |         \"\"\"Processes items and returns a list of Self instances.\"\"\"\n10 |         pass\n   |\ninfo: This violates the Liskov Substitution Principle\ninfo: rule `invalid-method-override` is enabled by default\n\nFound 1 diagnostic"
+      },
+      "statuses": {
+        "mypy": "ok",
+        "pyrefly": "ok",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    },
+    {
+      "filename": "func-name-on-callable-divergence.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/func-name-on-callable-divergence.py",
+      "seed_issue": null,
+      "metrics": {
+        "loc": 33,
+        "num_functions": 5,
+        "type_imports": 5,
+        "type_density": 0.0909,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "Success: no issues found in 1 source file",
+        "pyrefly": "INFO 0 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "error[unresolved-attribute]: Object of type `(**P@log_call) -> R@log_call` has no attribute `__name__`\n  --> _pytifex_temp_3317850.py:15:26\n   |\n13 |         # with a __call__ method but no __name__.\n14 |         # Ty is stricter about this, while others often infer it works in typical decorator contexts.\n15 |         print(f\"Calling {func.__name__} with args: {args}, kwargs: {kwargs}\")\n   |                          ^^^^^^^^^^^^^\n16 |         return func(*args, **kwargs)\n17 |     return wrapper\n   |\ninfo: rule `unresolved-attribute` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:40:21\n   |\n39 | if __name__ == \"__main__\":\n40 |     container_int = DataContainer[int].create_from_tuple((10, 20, 30))\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:40:21\n   |\n39 | if __name__ == \"__main__\":\n40 |     container_int = DataContainer[int].create_from_tuple((10, 20, 30))\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n   |\ninfo: Union variant `(cls: Divergent, data: Divergent) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[invalid-argument-type]: Argument is incorrect\n  --> _pytifex_temp_3317850.py:40:58\n   |\n39 | if __name__ == \"__main__\":\n40 |     container_int = DataContainer[int].create_from_tuple((10, 20, 30))\n   |                                                          ^^^^^^^^^^^^ Expected `type[Self@create_from_tuple]`, found `tuple[Literal[10], Literal[20], Literal[30]]`\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `invalid-argument-type` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:43:21\n   |\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n42 |\n43 |     container_str = DataContainer[str].create_from_tuple((\"hello\", \"world\"))\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n44 |     print(f\"Created container value: {container_str.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[str, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[str, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:43:21\n   |\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n42 |\n43 |     container_str = DataContainer[str].create_from_tuple((\"hello\", \"world\"))\n   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n44 |     print(f\"Created container value: {container_str.get_value()}\")\n   |\ninfo: Union variant `(cls: Divergent, data: Divergent) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[str, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[invalid-argument-type]: Argument is incorrect\n  --> _pytifex_temp_3317850.py:43:58\n   |\n41 |     print(f\"Created container value: {container_int.get_value()}\")\n42 |\n43 |     container_str = DataContainer[str].create_from_tuple((\"hello\", \"world\"))\n   |                                                          ^^^^^^^^^^^^^^^^^^ Expected `type[Self@create_from_tuple]`, found `tuple[Literal[\"hello\"], Literal[\"world\"]]`\n44 |     print(f\"Created container value: {container_str.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[str, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[str, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `invalid-argument-type` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:51:22\n   |\n49 |     # does not formally guarantee the `__name__` attribute, even though\n50 |     # in practice, decorated functions/methods typically have it.\n51 |     container_fail = DataContainer[int].create_from_tuple((1, 2)) # Now type-correct\n   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n52 |     print(f\"Created container value: {container_fail.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[missing-argument]: No argument provided for required parameter `data`\n  --> _pytifex_temp_3317850.py:51:22\n   |\n49 |     # does not formally guarantee the `__name__` attribute, even though\n50 |     # in practice, decorated functions/methods typically have it.\n51 |     container_fail = DataContainer[int].create_from_tuple((1, 2)) # Now type-correct\n   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n52 |     print(f\"Created container value: {container_fail.get_value()}\")\n   |\ninfo: Union variant `(cls: Divergent, data: Divergent) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `missing-argument` is enabled by default\n\nerror[invalid-argument-type]: Argument is incorrect\n  --> _pytifex_temp_3317850.py:51:59\n   |\n49 |     # does not formally guarantee the `__name__` attribute, even though\n50 |     # in practice, decorated functions/methods typically have it.\n51 |     container_fail = DataContainer[int].create_from_tuple((1, 2)) # Now type-correct\n   |                                                           ^^^^^^ Expected `type[Self@create_from_tuple]`, found `tuple[Literal[1], Literal[2]]`\n52 |     print(f\"Created container value: {container_fail.get_value()}\")\n   |\ninfo: Union variant `(cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown` is incompatible with this call site\ninfo: Attempted to call union type `((cls: type[Self@create_from_tuple], data: tuple[int, ...]) -> Unknown) | ((cls: Divergent, data: Divergent) -> Unknown)`\ninfo: rule `invalid-argument-type` is enabled by default\n\nFound 10 diagnostics"
+      },
+      "statuses": {
+        "mypy": "ok",
+        "pyrefly": "ok",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    },
+    {
+      "filename": "typeddict-unpack-total-inheritance.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/typeddict-unpack-total-inheritance.py",
+      "seed_issue": "https://github.com/microsoft/pyright/issues/10996",
+      "metrics": {
+        "loc": 32,
+        "num_functions": 2,
+        "type_imports": 5,
+        "type_density": 0.1875,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:7: error: Unexpected keyword argument \"extra_items\" for \"__init_subclass__\" of \"TypedDict\"  [call-arg]\nFound 1 error in 1 file (checked 1 source file)",
+        "pyrefly": "INFO 0 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "All checks passed!"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "ok",
+        "zuban": "ok",
+        "ty": "ok"
+      }
+    },
+    {
+      "filename": "unpack-typeddict-required-divergence.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/unpack-typeddict-required-divergence.py",
+      "seed_issue": null,
+      "metrics": {
+        "loc": 18,
+        "num_functions": 2,
+        "type_imports": 6,
+        "type_density": 0.3889,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:36: error: Missing named argument \"theme\" for \"render\" of \"Renderer\"  [call-arg]\nFound 1 error in 1 file (checked 1 source file)",
+        "pyrefly": "ERROR Missing argument `theme` in function `Renderer.render` [missing-argument]\n  --> _pytifex_temp_3317850.py:36:25\n   |\n36 |     html_renderer.render(\"World\")\n   |                         ^^^^^^^^^\n   |\n INFO 1 error",
+        "zuban": "_pytifex_temp_3317850.py:36: error: Missing named argument \"theme\" for \"render\" of \"Renderer\"  [call-arg]\nFound 1 error in 1 file (checked 1 source file)",
+        "ty": "All checks passed!"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "error",
+        "zuban": "error",
+        "ty": "ok"
+      }
+    },
+    {
+      "filename": "newtype-numpy-arithmetic.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/newtype-numpy-arithmetic.py",
+      "seed_issue": "https://github.com/microsoft/pyright/issues/11135",
+      "metrics": {
+        "loc": 17,
+        "num_functions": 1,
+        "type_imports": 2,
+        "type_density": -0.3529,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:1: error: Cannot find implementation or library stub for module named \"numpy\"  [import-not-found]\n_pytifex_temp_3317850.py:1: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports\n_pytifex_temp_3317850.py:13: note: Revealed type is \"Any\"\nFound 1 error in 1 file (checked 1 source file)",
+        "pyrefly": "ERROR Could not find import of `numpy` [missing-import]\n --> _pytifex_temp_3317850.py:1:8\n  |\n1 | import numpy as np\n  |        ^^^^^^^^^^^\n  |\n  Looked in these locations (from config in `/home/benedek-kaibas/pyrefly.toml`):\n  Import root (inferred from project layout): \"/home/benedek-kaibas\"\n  Site package path queried from interpreter: [\"/home/benedek-kaibas/miniconda3/lib/python3.12\", \"/home/benedek-kaibas/miniconda3/lib/python3.12/lib-dynload\", \"/home/benedek-kaibas/.cache/uv/environments-v2/main-2f8ea19050a2f955/lib/python3.12/site-packages\"]\n INFO revealed type: Unknown [reveal-type]\n  --> _pytifex_temp_3317850.py:13:16\n   |\n13 |     reveal_type(offset_array)\n   |                --------------\n   |\n INFO 1 error",
+        "zuban": "_pytifex_temp_3317850.py:13: note: Revealed type is \"numpy.ndarray[Any, numpy.dtype[numpy.signedinteger[Any]]]\"\nSuccess: no issues found in 1 source file",
+        "ty": "error[unresolved-import]: Cannot resolve imported module `numpy`\n --> _pytifex_temp_3317850.py:1:8\n  |\n1 | import numpy as np\n  |        ^^^^^^^^^^^\n2 | from typing import NewType, reveal_type\n  |\ninfo: Searched in the following paths during module resolution:\ninfo:   1. /home/benedek-kaibas/Documents/pytifex (first-party code)\ninfo:   2. vendored://stdlib (stdlib typeshed stubs vendored by ty)\ninfo:   3. /home/benedek-kaibas/.cache/uv/environments-v2/main-2f8ea19050a2f955/lib/python3.12/site-packages (site-packages)\ninfo:   4. /home/benedek-kaibas/.cache/uv/environments-v2/main-2f8ea19050a2f955/lib64/python3.12/site-packages (site-packages)\ninfo: make sure your Python environment is properly configured: https://docs.astral.sh/ty/modules/#python-environment\ninfo: rule `unresolved-import` is enabled by default\n\ninfo[revealed-type]: Revealed type\n  --> _pytifex_temp_3317850.py:13:17\n   |\n11 |     # The original issue was about datetime; this is numeric.\n12 |     offset_array = array + base_id\n13 |     reveal_type(offset_array)\n   |                 ^^^^^^^^^^^^ `Unknown`\n14 |     return offset_array\n   |\n\nerror[invalid-newtype]: invalid base for `typing.NewType`\n  --> _pytifex_temp_3317850.py:24:38\n   |\n23 |     # Test with a different base type that NewType wraps\n24 |     AnotherId = NewType(\"AnotherId\", float)\n   |                                      ^^^^^ type `int | float`\n25 |     another_id = AnotherId(5.5)\n26 |     float_array = np.array([1.1, 2.2])\n   |\ninfo: The base of a `NewType` must be a class type or another `NewType`.\ninfo: rule `invalid-newtype` is enabled by default\n\nerror[invalid-argument-type]: Argument to function `__new__` is incorrect\n  --> _pytifex_temp_3317850.py:27:56\n   |\n25 |     another_id = AnotherId(5.5)\n26 |     float_array = np.array([1.1, 2.2])\n27 |     result_float_array = calculate_offset(EntityId(int(another_id)), float_array) # Implicit conversion\n   |                                                        ^^^^^^^^^^ Expected `str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc`, found `AnotherId`\n28 |     print(f\"Result float array: {result_float_array}, type: {type(result_float_array)}\")\n   |\ninfo: Matching overload defined here\n   --> stdlib/builtins.pyi:366:9\n    |\n365 |     @overload\n366 |     def __new__(cls, x: ConvertibleToInt = 0, /) -> Self: ...\n    |         ^^^^^^^      ----------------------- Parameter declared here\n367 |     @overload\n368 |     def __new__(cls, x: str | bytes | bytearray, /, base: SupportsIndex) -> Self: ...\n    |\ninfo: Non-matching overloads for function `__new__`:\ninfo:   (cls, x: str | bytes | bytearray, /, base: SupportsIndex) -> Self@__new__\ninfo: rule `invalid-argument-type` is enabled by default\n\nFound 4 diagnostics"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "error",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    },
+    {
+      "filename": "self-generic-arithmetic.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/self-generic-arithmetic.py",
+      "seed_issue": "https://github.com/microsoft/pyright/issues/11135",
+      "metrics": {
+        "loc": 33,
+        "num_functions": 4,
+        "type_imports": 5,
+        "type_density": 0.0,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:11: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:11: error: Unsupported operand types for + (likely involving Union)  [operator]\n_pytifex_temp_3317850.py:12: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:12: error: Unsupported operand types for + (likely involving Union)  [operator]\n_pytifex_temp_3317850.py:16: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:16: error: Unsupported operand types for - (likely involving Union)  [operator]\n_pytifex_temp_3317850.py:17: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:17: error: Unsupported operand types for - (likely involving Union)  [operator]\n_pytifex_temp_3317850.py:34: note: Revealed type is \"_pytifex_temp_3317850.CustomInt\"\n_pytifex_temp_3317850.py:38: note: Revealed type is \"_pytifex_temp_3317850.CustomInt\"\n_pytifex_temp_3317850.py:42: note: Revealed type is \"_pytifex_temp_3317850.CustomFloat\"\n_pytifex_temp_3317850.py:47: error: Unsupported operand types for + (\"CustomInt\" and \"CustomFloat\")  [operator]\nFound 9 errors in 1 file (checked 1 source file)",
+        "pyrefly": "ERROR `+` is not supported between `V` and `V` [unsupported-operation]\n  --> _pytifex_temp_3317850.py:12:27\n   |\n12 |         return type(self)(self.value + other)\n   |                           ^^^^^^^^^^^^^^^^^^\n   |\n  Argument `V` is not assignable to parameter `value` with type `int` in function `int.__add__`\nERROR `-` is not supported between `V` and `V` [unsupported-operation]\n  --> _pytifex_temp_3317850.py:17:27\n   |\n17 |         return type(self)(self.value - other)\n   |                           ^^^^^^^^^^^^^^^^^^\n   |\n  Argument `V` is not assignable to parameter `value` with type `int` in function `int.__sub__`\n INFO revealed type: CustomInt [reveal-type]\n  --> _pytifex_temp_3317850.py:34:16\n   |\n34 |     reveal_type(s_sum)\n   |                -------\n   |\n INFO revealed type: CustomInt [reveal-type]\n  --> _pytifex_temp_3317850.py:38:16\n   |\n38 |     reveal_type(s_int_sum)\n   |                -----------\n   |\n INFO revealed type: CustomFloat [reveal-type]\n  --> _pytifex_temp_3317850.py:42:16\n   |\n42 |     reveal_type(s_float_diff)\n   |                --------------\n   |\nERROR `+` is not supported between `CustomInt` and `CustomFloat` [unsupported-operation]\n  --> _pytifex_temp_3317850.py:47:19\n   |\n47 |     s_mixed_add = s1 + CustomFloat(2.5) # This should error as CustomInt can't hold float\n   |                   ^^^^^^^^^^^^^^^^^^^^^\n   |\n  Argument `CustomFloat` is not assignable to parameter `other` with type `CustomInt | int` in function `Scalar.__add__`\n INFO 3 errors",
+        "zuban": "_pytifex_temp_3317850.py:11: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:12: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:16: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:17: error: Argument 1 to \"Scalar\" has incompatible type \"int | float\"; expected \"V\"  [arg-type]\n_pytifex_temp_3317850.py:34: note: Revealed type is \"_pytifex_temp_3317850.CustomInt\"\n_pytifex_temp_3317850.py:38: note: Revealed type is \"_pytifex_temp_3317850.CustomInt\"\n_pytifex_temp_3317850.py:42: note: Revealed type is \"_pytifex_temp_3317850.CustomFloat\"\n_pytifex_temp_3317850.py:47: error: Unsupported operand types for + (\"CustomInt\" and \"CustomFloat\")  [operator]\nFound 5 errors in 1 file (checked 1 source file)",
+        "ty": "info[revealed-type]: Revealed type\n  --> _pytifex_temp_3317850.py:34:17\n   |\n32 |     s2 = CustomInt(5)\n33 |     s_sum = s1 + s2\n34 |     reveal_type(s_sum)\n   |                 ^^^^^ `CustomInt`\n35 |     print(f\"{s1} + {s2} = {s_sum}, type: {type(s_sum)}\")\n   |\n\ninfo[revealed-type]: Revealed type\n  --> _pytifex_temp_3317850.py:38:17\n   |\n37 |     s_int_sum = s1 + 3\n38 |     reveal_type(s_int_sum)\n   |                 ^^^^^^^^^ `CustomInt`\n39 |     print(f\"{s1} + 3 = {s_int_sum}, type: {type(s_int_sum)}\")\n   |\n\ninfo[revealed-type]: Revealed type\n  --> _pytifex_temp_3317850.py:42:17\n   |\n41 |     s_float_diff = CustomFloat(10.5) - CustomFloat(2.5)\n42 |     reveal_type(s_float_diff)\n   |                 ^^^^^^^^^^^^ `CustomFloat`\n43 |     print(f\"{CustomFloat(10.5)} - {CustomFloat(2.5)} = {s_float_diff}, type: {type(s_float_diff)}\")\n   |\n\nFound 3 diagnostics"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "error",
+        "zuban": "error",
+        "ty": "ok"
+      }
+    },
+    {
+      "filename": "protocol-any-contravariance-refined.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/protocol-any-contravariance-refined.py",
+      "seed_issue": null,
+      "metrics": {
+        "loc": 39,
+        "num_functions": 6,
+        "type_imports": 3,
+        "type_density": 0.1282,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "Success: no issues found in 1 source file",
+        "pyrefly": "INFO 0 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "error[unsupported-operator]: Operator `+` is unsupported between objects of type `CustomTimeDelta` and `float`\n  --> _pytifex_temp_3317850.py:70:27\n   |\n68 |     # 3. Perform a deeper analysis to detect the runtime error despite the `NumericLike` type.\n69 |     try:\n70 |         delta_float_sum = numeric_like_instance + 5.5\n   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n71 |         print(f\"{numeric_like_instance} + 5.5 = {delta_float_sum}\")\n72 |     except TypeError as e:\n   |\ninfo: rule `unsupported-operator` is enabled by default\n\nFound 1 diagnostic"
+      },
+      "statuses": {
+        "mypy": "ok",
+        "pyrefly": "ok",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    },
+    {
+      "filename": "typeddict-multi-inheritance-overload.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/typeddict-multi-inheritance-overload.py",
+      "seed_issue": "https://github.com/python/mypy/issues/20016",
+      "metrics": {
+        "loc": 30,
+        "num_functions": 3,
+        "type_imports": 4,
+        "type_density": 0.5333,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:25: error: TypedDict \"WorkerOptions\" has no key \"url\"  [typeddict-item]\n_pytifex_temp_3317850.py:28: error: TypedDict \"RequestOptions\" has no key \"queue_name\"  [typeddict-item]\n_pytifex_temp_3317850.py:28: error: TypedDict \"RequestOptions\" has no key \"concurrency\"  [typeddict-item]\nFound 3 errors in 1 file (checked 1 source file)",
+        "pyrefly": "ERROR TypedDict `WorkerOptions` does not have key `url` [bad-typed-dict-key]\n  --> _pytifex_temp_3317850.py:25:49\n   |\n25 | ...   return f\"Processing request to {options['url']} with method {options.get('method', 'GET')}, debug={options.get('debug', False)}\"\n   |                                               ^^^^^\n   |\nERROR TypedDict `RequestOptions` does not have key `queue_name` [bad-typed-dict-key]\n  --> _pytifex_temp_3317850.py:28:59\n   |\n28 | ...   return f\"Processing worker task on queue {options['queue_name']} with concurrency {options['concurrency']}, verbose={options.g...\n   |                                                         ^^^^^^^^^^^^\n   |\nERROR TypedDict `RequestOptions` does not have key `concurrency` [bad-typed-dict-key]\n  --> _pytifex_temp_3317850.py:28:100\n   |\n28 | ...   return f\"Processing worker task on queue {options['queue_name']} with concurrency {options['concurrency']}, verbose={options.g...\n   |                                                                                                  ^^^^^^^^^^^^^\n   |\n INFO 3 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "error[invalid-key]: Unknown key \"url\" for TypedDict `WorkerOptions`\n  --> _pytifex_temp_3317850.py:25:41\n   |\n23 |     if \"url\" in options and \"method\" in options:\n24 |         # RequestOptions path\n25 |         return f\"Processing request to {options['url']} with method {options.get('method', 'GET')}, debug={options.get('debug', False)\u2026\n   |                                         ------- ^^^^^ Unknown key \"url\"\n   |                                         |\n   |                                         TypedDict `WorkerOptions`\n26 |     elif \"concurrency\" in options and \"queue_name\" in options:\n27 |         # WorkerOptions path\n   |\ninfo: rule `invalid-key` is enabled by default\n\nerror[invalid-key]: Unknown key \"queue_name\" for TypedDict `RequestOptions`\n  --> _pytifex_temp_3317850.py:28:51\n   |\n26 |     elif \"concurrency\" in options and \"queue_name\" in options:\n27 |         # WorkerOptions path\n28 |         return f\"Processing worker task on queue {options['queue_name']} with concurrency {options['concurrency']}, verbose={options.g\u2026\n   |                                                   ------- ^^^^^^^^^^^^ Unknown key \"queue_name\"\n   |                                                   |\n   |                                                   TypedDict `RequestOptions`\n29 |     else:\n30 |         raise ValueError(\"Unknown options type\")\n   |\ninfo: rule `invalid-key` is enabled by default\n\nerror[invalid-key]: Unknown key \"concurrency\" for TypedDict `RequestOptions`\n  --> _pytifex_temp_3317850.py:28:92\n   |\n26 | \u2026e\" in options:\n27 | \u2026\n28 | \u2026 {options['queue_name']} with concurrency {options['concurrency']}, verbose={options.get('verbose', False)}\"\n   |                                             ------- ^^^^^^^^^^^^^ Unknown key \"concurrency\"\n   |                                             |\n   |                                             TypedDict `RequestOptions`\n29 | \u2026\n30 | \u2026\n   |\ninfo: rule `invalid-key` is enabled by default\n\nFound 3 diagnostics"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "error",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    },
+    {
+      "filename": "typeguard-list-complex-init.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/typeguard-list-complex-init.py",
+      "seed_issue": "https://github.com/python/mypy/issues/20016",
+      "metrics": {
+        "loc": 45,
+        "num_functions": 6,
+        "type_imports": 4,
+        "type_density": 0.2,
+        "internal_calls": 1
+      },
+      "outputs": {
+        "mypy": "_pytifex_temp_3317850.py:46: error: Incompatible types in assignment (expression has type \"BasicRecord | ComplexRecord\", variable has type \"ComplexRecord\")  [assignment]\n_pytifex_temp_3317850.py:47: error: \"ComplexRecord\" has no attribute \"name\"  [attr-defined]\n_pytifex_temp_3317850.py:54: error: Argument 1 to \"process_records\" has incompatible type \"list[BasicRecord]\"; expected \"list[BasicRecord | ComplexRecord]\"  [arg-type]\n_pytifex_temp_3317850.py:54: note: \"list\" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance\n_pytifex_temp_3317850.py:54: note: Consider using \"Sequence\" instead, which is covariant\n_pytifex_temp_3317850.py:55: error: Argument 1 to \"process_records\" has incompatible type \"list[ComplexRecord]\"; expected \"list[BasicRecord | ComplexRecord]\"  [arg-type]\n_pytifex_temp_3317850.py:55: note: \"list\" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance\n_pytifex_temp_3317850.py:55: note: Consider using \"Sequence\" instead, which is covariant\n_pytifex_temp_3317850.py:56: error: Argument 1 to \"process_records\" has incompatible type \"list[object]\"; expected \"list[BasicRecord | ComplexRecord]\"  [arg-type]\nFound 5 errors in 1 file (checked 1 source file)",
+        "pyrefly": "ERROR Object of class `ComplexRecord` has no attribute `name` [missing-attribute]\n  --> _pytifex_temp_3317850.py:47:54\n   |\n47 |             print(f\"Basic Record: ID={rec.id}, Name={rec.name}\")\n   |                                                      ^^^^^^^^\n   |\nERROR Argument `list[BasicRecord]` is not assignable to parameter `records` with type `list[BasicRecord | ComplexRecord]` in function `process_records` [bad-argument-type]\n  --> _pytifex_temp_3317850.py:54:21\n   |\n54 |     process_records(basic_list)\n   |                     ^^^^^^^^^^\n   |\nERROR Argument `list[ComplexRecord]` is not assignable to parameter `records` with type `list[BasicRecord | ComplexRecord]` in function `process_records` [bad-argument-type]\n  --> _pytifex_temp_3317850.py:55:21\n   |\n55 |     process_records(complex_list)\n   |                     ^^^^^^^^^^^^\n   |\n INFO 3 errors",
+        "zuban": "_pytifex_temp_3317850.py:47: error: Item \"ComplexRecord\" of \"BasicRecord | ComplexRecord\" has no attribute \"name\"  [union-attr]\n_pytifex_temp_3317850.py:54: error: Argument 1 to \"process_records\" has incompatible type \"list[BasicRecord]\"; expected \"list[BasicRecord | ComplexRecord]\"  [arg-type]\n_pytifex_temp_3317850.py:54: note: \"List\" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance\n_pytifex_temp_3317850.py:54: note: Consider using \"Sequence\" instead, which is covariant\n_pytifex_temp_3317850.py:55: error: Argument 1 to \"process_records\" has incompatible type \"list[ComplexRecord]\"; expected \"list[BasicRecord | ComplexRecord]\"  [arg-type]\n_pytifex_temp_3317850.py:55: note: \"List\" is invariant -- see https://mypy.readthedocs.io/en/stable/common_issues.html#variance\n_pytifex_temp_3317850.py:55: note: Consider using \"Sequence\" instead, which is covariant\nFound 3 errors in 1 file (checked 1 source file)",
+        "ty": "warning[possibly-missing-attribute]: Attribute `value` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:39:16\n   |\n37 |         # if they don't fully narrow or struggle with overloaded __init__ for instantiation checks.\n38 |         for rec in records:\n39 |             if rec.value is not None:\n   |                ^^^^^^^^^\n40 |                 print(f\"Complex Record (Value): ID={rec.id}, Value={rec.value} {rec.unit}\")\n41 |             elif rec.data:\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nwarning[possibly-missing-attribute]: Attribute `value` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:40:69\n   |\n38 |         for rec in records:\n39 |             if rec.value is not None:\n40 |                 print(f\"Complex Record (Value): ID={rec.id}, Value={rec.value} {rec.unit}\")\n   |                                                                     ^^^^^^^^^\n41 |             elif rec.data:\n42 |                 print(f\"Complex Record (Data): ID={rec.id}, Data={rec.data}\")\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nwarning[possibly-missing-attribute]: Attribute `unit` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:40:81\n   |\n38 |         for rec in records:\n39 |             if rec.value is not None:\n40 |                 print(f\"Complex Record (Value): ID={rec.id}, Value={rec.value} {rec.unit}\")\n   |                                                                                 ^^^^^^^^\n41 |             elif rec.data:\n42 |                 print(f\"Complex Record (Data): ID={rec.id}, Data={rec.data}\")\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nwarning[possibly-missing-attribute]: Attribute `data` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:41:18\n   |\n39 |             if rec.value is not None:\n40 |                 print(f\"Complex Record (Value): ID={rec.id}, Value={rec.value} {rec.unit}\")\n41 |             elif rec.data:\n   |                  ^^^^^^^^\n42 |                 print(f\"Complex Record (Data): ID={rec.id}, Data={rec.data}\")\n43 |             else:\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nwarning[possibly-missing-attribute]: Attribute `data` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:42:67\n   |\n40 |                 print(f\"Complex Record (Value): ID={rec.id}, Value={rec.value} {rec.unit}\")\n41 |             elif rec.data:\n42 |                 print(f\"Complex Record (Data): ID={rec.id}, Data={rec.data}\")\n   |                                                                   ^^^^^^^^\n43 |             else:\n44 |                 print(f\"Complex Record (Unknown): ID={rec.id}\")\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nwarning[possibly-missing-attribute]: Attribute `name` may be missing on object of type `BasicRecord | ComplexRecord`\n  --> _pytifex_temp_3317850.py:47:54\n   |\n45 |     else:\n46 |         for rec in records:\n47 |             print(f\"Basic Record: ID={rec.id}, Name={rec.name}\")\n   |                                                      ^^^^^^^^\n48 |\n49 | if __name__ == \"__main__\":\n   |\ninfo: rule `possibly-missing-attribute` is enabled by default\n\nFound 6 diagnostics"
+      },
+      "statuses": {
+        "mypy": "error",
+        "pyrefly": "error",
+        "zuban": "error",
+        "ty": "ok"
+      }
+    },
+    {
+      "filename": "self-generic-union-return.py",
+      "filepath": "generated_examples/2026-04-07_14-10-11/source_files/self-generic-union-return.py",
+      "seed_issue": "astral-sh/ty#2844",
+      "metrics": {
+        "loc": 34,
+        "num_functions": 4,
+        "type_imports": 7,
+        "type_density": -0.0294,
+        "internal_calls": 0
+      },
+      "outputs": {
+        "mypy": "Success: no issues found in 1 source file",
+        "pyrefly": "INFO 0 errors",
+        "zuban": "Success: no issues found in 1 source file",
+        "ty": "error[invalid-argument-type]: Argument to bound method `append` is incorrect\n  --> _pytifex_temp_3317850.py:12:30\n   |\n10 |     def add_child(self, child_value: T) -> Self:\n11 |         new_child = type(self)(child_value)\n12 |         self.children.append(new_child)\n   |                              ^^^^^^^^^ Expected `Self@__init__`, found `Self@add_child`\n13 |         return new_child\n   |\ninfo: Method defined here\n    --> stdlib/builtins.pyi:2816:9\n     |\n2814 |         \"\"\"Return a shallow copy of the list.\"\"\"\n2815 |\n2816 |     def append(self, object: _T, /) -> None:\n     |         ^^^^^^       ---------- Parameter declared here\n2817 |         \"\"\"Append object to the end of the list.\"\"\"\n     |\ninfo: Union variant `bound method list[Self@__init__].append(object: Self@__init__, /) -> None` is incompatible with this call site\ninfo: Attempted to call union type `Unknown | (bound method list[Self@__init__].append(object: Self@__init__, /) -> None) | (bound method list[Unknown].append(object: Unknown, /) -> None)`\ninfo: rule `invalid-argument-type` is enabled by default\n\nerror[unresolved-reference]: Name `Callable` used when not defined\n  --> _pytifex_temp_3317850.py:15:37\n   |\n13 |         return new_child\n14 |\n15 |     def find_first(self, predicate: Callable[[T], bool]) -> Optional[Union[Self, \"Node[Any]\"]]:\n   |                                     ^^^^^^^^\n16 |         # Return type is a union of Self or a Node with a different type var.\n17 |         # This complexity can lead to non-deterministic type resolution for different checkers.\n   |\ninfo: rule `unresolved-reference` is enabled by default\n\nFound 2 diagnostics"
+      },
+      "statuses": {
+        "mypy": "ok",
+        "pyrefly": "ok",
+        "zuban": "ok",
+        "ty": "error"
+      }
+    }
+  ]
+}
