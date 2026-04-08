@@ -55,6 +55,9 @@ pip3 install pytifex
 ## Usage
 
 ```bash
+# You have to set your Google Gemini API key in your terminal window
+export GEMINI_API_KEY="your-api-key-here"
+
 # Run the full pipeline: mine → generate → filter → evaluate
 uv run main.py
 
