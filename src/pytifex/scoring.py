@@ -23,7 +23,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from comprehensive_eval import evaluate_comprehensive, EvaluationResult
+from .comprehensive_eval import evaluate_comprehensive, EvaluationResult
 
 
 TIER_WEIGHTS = {1: 1.00, 2: 0.90, 3: 0.75}

@@ -4,8 +4,8 @@ Use REAL bug reports from type checker GitHub issues as seeds,
 then ask the LLM to generate VARIATIONS that might cause divergences.
 """
 
-from patterns import PATTERNS
-from github_issues import IssueExample, format_example_for_prompt
+from .patterns import PATTERNS
+from .github_issues import IssueExample, format_example_for_prompt
 
 
 def build_seed_based_prompt(

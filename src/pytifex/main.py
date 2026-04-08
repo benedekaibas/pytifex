@@ -23,9 +23,9 @@ Only keeps examples where checkers actually disagree.
 import argparse
 import sys
 
-from run_checkers import run_checkers
-from eval import evaluate_results
-from pipeline import generate_with_filtering
+from .run_checkers import run_checkers
+from .eval import evaluate_results
+from .pipeline import generate_with_filtering
 
 
 def main():

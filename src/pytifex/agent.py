@@ -4,8 +4,8 @@ import os
 import httpx
 import argparse
 
-import generate_json
-from prompts import build_expert_prompt
+from . import generate_json
+from .prompts import build_expert_prompt
 
 
 class GetAccessToGemini(BaseModel):

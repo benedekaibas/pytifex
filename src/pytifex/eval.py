@@ -20,10 +20,10 @@ import random
 import textwrap
 import argparse
 
-from config import BASE_GEN_DIR
+from .config import BASE_GEN_DIR
 
 try:
-    from agent import GetAccessToGemini
+    from .agent import GetAccessToGemini
 except ImportError:
     print("[ERROR] Could not import GetAccessToGemini. Make sure 'agent.py' exists.")
     sys.exit(1)

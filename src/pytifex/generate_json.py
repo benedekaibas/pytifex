@@ -4,7 +4,7 @@ import json
 import datetime
 from typing import Optional
 
-from config import BASE_GEN_DIR
+from .config import BASE_GEN_DIR
 
 
 def parse_generated_content(response_text: str) -> list[dict[str, str]]:

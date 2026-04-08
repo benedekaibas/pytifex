@@ -13,12 +13,12 @@ from typing import Optional
 
 from pydantic import HttpUrl
 
-from agent import GetAccessToGemini
-from config import BASE_GEN_DIR, CHECKERS
-from prompts import build_seed_based_prompt, build_expert_prompt, build_refinement_prompt
-from github_issues import fetch_random_examples, IssueExample
-from code_metrics import compute_metrics, metrics_to_dict
-import generate_json
+from .agent import GetAccessToGemini
+from .config import BASE_GEN_DIR, CHECKERS
+from .prompts import build_seed_based_prompt, build_expert_prompt, build_refinement_prompt
+from .github_issues import fetch_random_examples, IssueExample
+from .code_metrics import compute_metrics, metrics_to_dict
+from . import generate_json
 
 
 @dataclass

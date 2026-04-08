@@ -10,8 +10,8 @@ import json, pathlib, sys, re
 ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from comprehensive_eval import _checker_reports_error as comp_reports_error
-from static_tier4 import _checker_reports_error as tier4_reports_error
+from .comprehensive_eval import _checker_reports_error as comp_reports_error
+from .static_tier4 import _checker_reports_error as tier4_reports_error
 
 RESULTS_FILE = ROOT / "generated_examples" / "2026-02-20_13-08-02" / "results.json"
 

@@ -8,7 +8,7 @@ and checks that verdicts match expected ground truth.
 import json
 import os
 import tempfile
-from comprehensive_eval import evaluate_comprehensive, Verdict
+from .comprehensive_eval import evaluate_comprehensive, Verdict
 
 
 # TEST FILES — each has documented known bugs

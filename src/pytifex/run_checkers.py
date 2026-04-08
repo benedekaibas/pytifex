@@ -4,9 +4,9 @@ import subprocess
 import sys
 import glob as glob_module
 
-from config import BASE_GEN_DIR, CHECKERS
-from rederive_statuses import checker_reports_error
-from code_metrics import compute_metrics, metrics_to_dict
+from .config import BASE_GEN_DIR, CHECKERS
+from .rederive_statuses import checker_reports_error
+from .code_metrics import compute_metrics, metrics_to_dict
 
 
 def get_latest_generation_dir() -> str:
