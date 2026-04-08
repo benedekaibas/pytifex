@@ -1,6 +1,6 @@
 project:
-  type: book
-  output-dir: _book
+  type: website
+  output-dir: docs
 
 book:
   title: "Pytifex — Automated Differential Testing for Python Type Checkers"
