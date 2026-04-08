@@ -59,26 +59,26 @@ pip3 install pytifex
 export GEMINI_API_KEY="your-api-key-here"
 
 # Run the full pipeline: mine → generate → filter → evaluate
-uv run main.py
+uv run pytifex
 
 # Generate until N disagreements are found
-uv run main.py --num-examples 10
+uv run pytifex --num-examples 10
 
 # Use a different model
-uv run main.py --model gemini-2.5-pro
+uv run pytifex --model gemini-2.5-pro
 
 # Skip GitHub seed fetching
-uv run main.py --no-github
+uv run pytifex --no-github
 ```
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `uv run main.py` | Full pipeline (generate + evaluate) |
-| `uv run main.py generate` | Generate disagreements only |
-| `uv run main.py check` | Run type checkers on existing examples |
-| `uv run main.py eval` | Evaluate existing results |
+| `uv run pytifex` | Full pipeline (generate + evaluate) |
+| `uv run pytifex generate` | Generate disagreements only |
+| `uv run pytifex check` | Run type checkers on existing examples |
+| `uv run pytifex eval` | Evaluate existing results |
 
 ### Options
 
@@ -106,4 +106,3 @@ Pytifex uses a multi-phase evaluation oracle to determine which checker is corre
 | 4 | Static flow analysis | 0.80 |
 
 **Key insight:** Runtime behavior is the ultimate ground truth. If code raises `TypeError` at runtime, any checker that reported "OK" is definitively wrong.
-
