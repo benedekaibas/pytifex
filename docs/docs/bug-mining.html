@@ -136,10 +136,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#disagreement-detection" id="toc-disagreement-detection" class="nav-link" data-scroll-target="#disagreement-detection">Disagreement Detection</a></li>
   <li><a href="#refinement-loop" id="toc-refinement-loop" class="nav-link" data-scroll-target="#refinement-loop">Refinement Loop</a></li>
-  <li><a href="#controlling-the-pipeline" id="toc-controlling-the-pipeline" class="nav-link" data-scroll-target="#controlling-the-pipeline">Controlling the Pipeline</a>
-  <ul class="collapse">
-  <li><a href="#typical-hit-rates" id="toc-typical-hit-rates" class="nav-link" data-scroll-target="#typical-hit-rates">Typical hit rates</a></li>
-  </ul></li>
+  <li><a href="#controlling-the-pipeline" id="toc-controlling-the-pipeline" class="nav-link" data-scroll-target="#controlling-the-pipeline">Controlling the Pipeline</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -175,6 +172,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyright"</span>: <span class="st">"microsoft/pyright"</span>,</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: <span class="st">"zubanls/zuban"</span>,</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>NOTE</strong>: Pytifex does not evaluate <code>pyright</code>, but because of its rich nature of GitHub issues it provides a valuable source for code examples.</p>
 </section>
 <section id="filtering-to-confirmed-bugs" class="level3">
 <h3 class="anchored" data-anchor-id="filtering-to-confirmed-bugs">Filtering to Confirmed Bugs</h3>
@@ -325,37 +323,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<section id="typical-hit-rates" class="level3">
-<h3 class="anchored" data-anchor-id="typical-hit-rates">Typical hit rates</h3>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Configuration</th>
-<th>Approximate hit rate</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Seeds + <code>gemini-2.5-flash</code></td>
-<td>30–60%</td>
-</tr>
-<tr class="even">
-<td>Seeds + <code>gemini-2.5-pro</code></td>
-<td>50–70%</td>
-</tr>
-<tr class="odd">
-<td>No seeds (pattern-only)</td>
-<td>15–30%</td>
-</tr>
-<tr class="even">
-<td>With refinement (2 rounds)</td>
-<td>+10–15% additional recovery</td>
-</tr>
-</tbody>
-</table>
 
 
-</section>
 </section>
 </section>
 

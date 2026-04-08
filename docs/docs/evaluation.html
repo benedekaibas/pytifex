@@ -121,29 +121,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#design-philosophy" id="toc-design-philosophy" class="nav-link" data-scroll-target="#design-philosophy">Design Philosophy</a></li>
   <li><a href="#evaluation-tiers" id="toc-evaluation-tiers" class="nav-link" data-scroll-target="#evaluation-tiers">Evaluation Tiers</a></li>
-  <li><a href="#tier-0-oracle-oracle.py" id="toc-tier-0-oracle-oracle.py" class="nav-link" data-scroll-target="#tier-0-oracle-oracle.py">Tier 0 — Oracle (<code>oracle.py</code>)</a>
+  <li><a href="#phase-0-oracle-oracle.py" id="toc-phase-0-oracle-oracle.py" class="nav-link" data-scroll-target="#phase-0-oracle-oracle.py">Phase 0 — Oracle (<code>oracle.py</code>)</a>
   <ul class="collapse">
   <li><a href="#how-it-works" id="toc-how-it-works" class="nav-link" data-scroll-target="#how-it-works">How It Works</a></li>
   <li><a href="#supported-rule-categories" id="toc-supported-rule-categories" class="nav-link" data-scroll-target="#supported-rule-categories">Supported Rule Categories</a></li>
   </ul></li>
-  <li><a href="#tier-1-runtime-crash-detection" id="toc-tier-1-runtime-crash-detection" class="nav-link" data-scroll-target="#tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</a>
+  <li><a href="#phase-1-runtime-crash-detection" id="toc-phase-1-runtime-crash-detection" class="nav-link" data-scroll-target="#phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</a>
   <ul class="collapse">
   <li><a href="#full-traceback-walking" id="toc-full-traceback-walking" class="nav-link" data-scroll-target="#full-traceback-walking">Full Traceback Walking</a></li>
   <li><a href="#isolating-swallowed-errors" id="toc-isolating-swallowed-errors" class="nav-link" data-scroll-target="#isolating-swallowed-errors">Isolating Swallowed Errors</a></li>
   <li><a href="#verdict-logic" id="toc-verdict-logic" class="nav-link" data-scroll-target="#verdict-logic">Verdict Logic</a></li>
   </ul></li>
-  <li><a href="#tier-2-hypothesis-property-based-testing-hypothesis_tier2.py" id="toc-tier-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="nav-link" data-scroll-target="#tier-2-hypothesis-property-based-testing-hypothesis_tier2.py">Tier 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</a>
+  <li><a href="#phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" id="toc-phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="nav-link" data-scroll-target="#phase-2-hypothesis-property-based-testing-hypothesis_tier2.py">Phase 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</a>
   <ul class="collapse">
   <li><a href="#how-it-works-1" id="toc-how-it-works-1" class="nav-link" data-scroll-target="#how-it-works-1">How It Works</a></li>
   <li><a href="#targeted-tests" id="toc-targeted-tests" class="nav-link" data-scroll-target="#targeted-tests">Targeted Tests</a></li>
   </ul></li>
-  <li><a href="#tier-3-pep-specification-compliance" id="toc-tier-3-pep-specification-compliance" class="nav-link" data-scroll-target="#tier-3-pep-specification-compliance">Tier 3 — PEP Specification Compliance</a>
+  <li><a href="#phase-3-pep-specification-compliance" id="toc-phase-3-pep-specification-compliance" class="nav-link" data-scroll-target="#phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</a>
   <ul class="collapse">
   <li><a href="#example-rules" id="toc-example-rules" class="nav-link" data-scroll-target="#example-rules">Example Rules</a></li>
   <li><a href="#noise-filtering" id="toc-noise-filtering" class="nav-link" data-scroll-target="#noise-filtering">Noise Filtering</a></li>
   <li><a href="#covered-peps" id="toc-covered-peps" class="nav-link" data-scroll-target="#covered-peps">Covered PEPs</a></li>
   </ul></li>
-  <li><a href="#tier-4-static-flow-analysis-static_tier4.py" id="toc-tier-4-static-flow-analysis-static_tier4.py" class="nav-link" data-scroll-target="#tier-4-static-flow-analysis-static_tier4.py">Tier 4 — Static Flow Analysis (<code>static_tier4.py</code>)</a></li>
+  <li><a href="#phase-4-static-flow-analysis-static_tier4.py" id="toc-phase-4-static-flow-analysis-static_tier4.py" class="nav-link" data-scroll-target="#phase-4-static-flow-analysis-static_tier4.py">Phase 4 — Static Flow Analysis (<code>static_tier4.py</code>)</a></li>
   <li><a href="#agent-resolution" id="toc-agent-resolution" class="nav-link" data-scroll-target="#agent-resolution">Agent Resolution</a></li>
   <li><a href="#running-evaluation" id="toc-running-evaluation" class="nav-link" data-scroll-target="#running-evaluation">Running Evaluation</a>
   <ul class="collapse">
@@ -172,29 +172,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="evaluation-tiers" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation-tiers">Evaluation Tiers</h2>
-<pre class="text"><code>┌─────────────────────────────────────────────────────────────┐
-│  Tier 0: Oracle — AST-based PEP violation detection         │
-│  Confidence: 0.85–0.95                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 1: Runtime Crash Detection                            │
-│  Confidence: 0.95–1.0                                       │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 2: Hypothesis Property-Based Testing                  │
-│  Confidence: 0.85                                           │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 3: PEP Specification Compliance                       │
-│  Confidence: 0.80–0.85                                      │
-├─────────────────────────────────────────────────────────────┤
-│  Tier 4: Static Flow Analysis                               │
-│  Confidence: 0.80                                           │
-├─────────────────────────────────────────────────────────────┤
-│  Agent Resolution: LLM-based verdict for UNCERTAIN cases    │
-│  Confidence: 0.70                                           │
-└─────────────────────────────────────────────────────────────┘</code></pre>
+<pre class="text"><code>┌──────────────────────────────────────────────────────────────┐
+│  Phase 0: Oracle — AST-based PEP violation detection         │
+│  Confidence: 0.85–0.95                                       │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 1: Runtime Crash Detection                            │
+│  Confidence: 0.95–1.0                                        │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 2: Hypothesis Property-Based Testing                  │
+│  Confidence: 0.85                                            │
+├──────────────────────────────────────────────────────────────┤
+│  Phase 3: PEP Specification Compliance                       │
+│  Confidence: 0.80–0.85                                       │
+├──────────────────────────────────────────────────────────────┤
+│  Phsae 4: Static Flow Analysis                               │
+│  Confidence: 0.80                                            │
+├──────────────────────────────────────────────────────────────┤
+│  Agent Resolution: LLM-based verdict for UNCERTAIN cases     │
+│  Confidence: 0.70                                            │
+└──────────────────────────────────────────────────────────────┘</code></pre>
 <hr>
 </section>
-<section id="tier-0-oracle-oracle.py" class="level2">
-<h2 class="anchored" data-anchor-id="tier-0-oracle-oracle.py">Tier 0 — Oracle (<code>oracle.py</code>)</h2>
+<section id="phase-0-oracle-oracle.py" class="level2">
+<h2 class="anchored" data-anchor-id="phase-0-oracle-oracle.py">Phase 0 — Oracle (<code>oracle.py</code>)</h2>
 <p>The oracle performs <strong>AST-based source analysis</strong> to find violations that MUST exist according to PEP specifications, independent of any checker output.</p>
 <section id="how-it-works" class="level3">
 <h3 class="anchored" data-anchor-id="how-it-works">How It Works</h3>
@@ -270,13 +270,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <hr>
 </section>
 </section>
-<section id="tier-1-runtime-crash-detection" class="level2">
-<h2 class="anchored" data-anchor-id="tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</h2>
+<section id="phase-1-runtime-crash-detection" class="level2">
+<h2 class="anchored" data-anchor-id="phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</h2>
 <p>Executes the generated code and catches type-related runtime exceptions:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>TYPE_ERROR_EXCEPTIONS <span class="op">=</span> (<span class="pp">TypeError</span>, <span class="pp">KeyError</span>, <span class="pp">AttributeError</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="full-traceback-walking" class="level3">
 <h3 class="anchored" data-anchor-id="full-traceback-walking">Full Traceback Walking</h3>
-<p>Tier 1 doesn’t just catch the top-level exception — it walks the <strong>entire traceback</strong> and inspects <strong>exception chains</strong> (<code>__cause__</code> / <code>__context__</code>):</p>
+<p>Phase 1 doesn’t just catch the top-level exception — it walks the <strong>entire traceback</strong> and inspects <strong>exception chains</strong> (<code>__cause__</code> / <code>__context__</code>):</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _collect_chained_exceptions(exc):</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    chain <span class="op">=</span> []</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> exc</span>
@@ -288,7 +288,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="isolating-swallowed-errors" class="level3">
 <h3 class="anchored" data-anchor-id="isolating-swallowed-errors">Isolating Swallowed Errors</h3>
-<p>Code often contains <code>try</code>/<code>except</code> blocks that catch and hide type errors. Tier 1 uses AST analysis to find <code>try</code> bodies and re-executes them in isolation:</p>
+<p>Code often contains <code>try</code>/<code>except</code> blocks that catch and hide type errors. Phase 1 uses AST analysis to find <code>try</code> bodies and re-executes them in isolation:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>try_bodies <span class="op">=</span> _extract_try_bodies(source_code)</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> start_line, end_line, body_source <span class="kw">in</span> try_bodies:</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    isolated_bugs <span class="op">=</span> _run_isolated_code(body_source)</span>
@@ -325,8 +325,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <hr>
 </section>
 </section>
-<section id="tier-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="level2">
-<h2 class="anchored" data-anchor-id="tier-2-hypothesis-property-based-testing-hypothesis_tier2.py">Tier 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</h2>
+<section id="phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="level2">
+<h2 class="anchored" data-anchor-id="phase-2-hypothesis-property-based-testing-hypothesis_tier2.py">Phase 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</h2>
 <p>Uses <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> to generate random inputs matching declared type annotations and run them through the actual code.</p>
 <section id="how-it-works-1" class="level3">
 <h3 class="anchored" data-anchor-id="how-it-works-1">How It Works</h3>
@@ -351,8 +351,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <hr>
 </section>
 </section>
-<section id="tier-3-pep-specification-compliance" class="level2">
-<h2 class="anchored" data-anchor-id="tier-3-pep-specification-compliance">Tier 3 — PEP Specification Compliance</h2>
+<section id="phase-3-pep-specification-compliance" class="level2">
+<h2 class="anchored" data-anchor-id="phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</h2>
 <p>Matches a curated list of <code>PEP_RULES</code> against each checker’s output. Each rule is a regex pattern paired with the expected behavior:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PEPRule:</span>
@@ -378,7 +378,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="noise-filtering" class="level3">
 <h3 class="anchored" data-anchor-id="noise-filtering">Noise Filtering</h3>
-<p>The tier skips lines that are notes, info messages, or import-related errors:</p>
+<p>Pyitex skips lines that are notes, info messages, or import-related errors:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> text_line <span class="kw">in</span> output.splitlines():</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    lower <span class="op">=</span> text_line.lower()</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"note:"</span> <span class="kw">in</span> lower <span class="kw">or</span> <span class="st">"info["</span> <span class="kw">in</span> lower:</span>
@@ -394,8 +394,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <hr>
 </section>
 </section>
-<section id="tier-4-static-flow-analysis-static_tier4.py" class="level2">
-<h2 class="anchored" data-anchor-id="tier-4-static-flow-analysis-static_tier4.py">Tier 4 — Static Flow Analysis (<code>static_tier4.py</code>)</h2>
+<section id="phase-4-static-flow-analysis-static_tier4.py" class="level2">
+<h2 class="anchored" data-anchor-id="phase-4-static-flow-analysis-static_tier4.py">Phase 4 — Static Flow Analysis (<code>static_tier4.py</code>)</h2>
 <p>A collection of lightweight AST-based checks that run when earlier tiers didn’t resolve the verdict:</p>
 <table class="caption-top table">
 <colgroup>
@@ -439,7 +439,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="agent-resolution" class="level2">
 <h2 class="anchored" data-anchor-id="agent-resolution">Agent Resolution</h2>
-<p>Any verdict still <code>UNCERTAIN</code> after all tiers is forwarded to a Gemini API call for LLM-based resolution:</p>
+<p>Any verdict still <code>UNCERTAIN</code> after all phase is forwarded to a Gemini API call for LLM-based resolution:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="ss">f"""</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ss">Source code: </span><span class="sc">{</span>source_code<span class="sc">}</span></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ss">Checker: </span><span class="sc">{</span>checker_name<span class="sc">}</span></span>

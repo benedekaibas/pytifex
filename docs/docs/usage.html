@@ -137,22 +137,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Usage</h1>
 <p>Run from the <code>src/tc_disagreement</code> directory.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Full pipeline: mine → generate → filter → evaluate</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Target a specific number of disagreements</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">--num-examples</span> 10</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--num-examples</span> 10</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a more capable model</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">--model</span> gemini-2.5-pro</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-pro</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Skip GitHub seed fetching</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">--no-github</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--no-github</span></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Verbose output</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">-v</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">-v</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="commands" class="level2">
 <h2 class="anchored" data-anchor-id="commands">Commands</h2>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 40%">
+<col style="width: 59%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Command</th>
@@ -161,23 +165,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>uv run main.py</code></td>
-<td>Full pipeline (generate + evaluate)</td>
-</tr>
-<tr class="even">
-<td><code>uv run main.py full</code></td>
-<td>Same as above</td>
-</tr>
-<tr class="odd">
-<td><code>uv run main.py generate</code></td>
-<td>Generate disagreements only</td>
-</tr>
-<tr class="even">
-<td><code>uv run main.py check</code></td>
-<td>Run type checkers on existing examples</td>
-</tr>
-<tr class="odd">
-<td><code>uv run main.py eval</code></td>
+<td><code>uv run pytifex | Full pipeline (generate + evaluate) | |</code>uv run pytifex generate<code>| Generate disagreements only | |</code>uv run pytifex check<code>| Run type checkers on existing examples | |</code>uv run pytifex eval`</td>
 <td>Evaluate existing results</td>
 </tr>
 </tbody>

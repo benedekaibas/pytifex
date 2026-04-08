@@ -163,7 +163,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><strong>pyrefly</strong></td>
-<td>0.44.2</td>
+<td>0.60.0</td>
 <td><code>pyrefly check &lt;file&gt;</code></td>
 <td><a href="https://github.com/facebook/pyrefly">github.com/facebook/pyrefly</a></td>
 </tr>
@@ -171,7 +171,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><strong>zuban</strong></td>
 <td>0.3.0</td>
 <td><code>zuban check &lt;file&gt;</code></td>
-<td>Experimental checker</td>
+<td><a href="https://github.com/zubanls/zuban">github.com/zubanls/zuban</a></td>
 </tr>
 <tr class="even">
 <td><strong>ty</strong></td>
@@ -181,7 +181,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>All four are configured in a single dict in <a href="https://github.com/benedekaibas/pytifex-demo/blob/main/src/tc_disagreement/config.py"><code>config.py</code></a>:</p>
+<p>All four are configured in a single dict in <a href="https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py"><code>config.py</code></a>:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>CHECKERS <span class="op">=</span> {</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: [<span class="st">"mypy"</span>],</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: [<span class="st">"pyrefly"</span>, <span class="st">"check"</span>],</span>
@@ -287,7 +287,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="status-determination">Status Determination</h2>
 <p>Every file × checker pair gets a status of <code>"ok"</code> or <code>"error"</code>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>status <span class="op">=</span> <span class="st">"error"</span> <span class="cf">if</span> checker_reports_error(output, checker_name) <span class="cf">else</span> <span class="st">"ok"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>These statuses are stored in <code>results.json</code> and are the basis for detecting <em>disagreements</em> — cases where checkers assign different statuses to the same file.</p>
+<p>These statuses are stored in <code>results.json</code> and are the basis for detecting <em>disagreements</em>.</p>
 <p>If you suspect the statuses in an existing <code>results.json</code> are stale (e.g., after updating the parsing logic), you can re-derive them:</p>
 <div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview changes without writing</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> rederive_statuses.py <span class="at">--dry-run</span></span>

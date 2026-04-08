@@ -130,15 +130,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#evaluation-system-comprehensive_eval.py" id="toc-evaluation-system-comprehensive_eval.py" class="nav-link" data-scroll-target="#evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</a>
   <ul class="collapse">
-  <li><a href="#tier-0-oracle" id="toc-tier-0-oracle" class="nav-link" data-scroll-target="#tier-0-oracle">Tier 0 — Oracle</a></li>
-  <li><a href="#tier-1-runtime-crash-detection" id="toc-tier-1-runtime-crash-detection" class="nav-link" data-scroll-target="#tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</a></li>
-  <li><a href="#tier-2-hypothesis-property-based-testing" id="toc-tier-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</a></li>
-  <li><a href="#tier-3-pep-specification-compliance" id="toc-tier-3-pep-specification-compliance" class="nav-link" data-scroll-target="#tier-3-pep-specification-compliance">Tier 3 — PEP Specification Compliance</a></li>
-  <li><a href="#tier-4-static-flow-analysis" id="toc-tier-4-static-flow-analysis" class="nav-link" data-scroll-target="#tier-4-static-flow-analysis">Tier 4 — Static Flow Analysis</a></li>
+  <li><a href="#phase-0-oracle" id="toc-phase-0-oracle" class="nav-link" data-scroll-target="#phase-0-oracle">Phase 0 — Oracle</a></li>
+  <li><a href="#phase-1-runtime-crash-detection" id="toc-phase-1-runtime-crash-detection" class="nav-link" data-scroll-target="#phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</a></li>
+  <li><a href="#phase-2-hypothesis-property-based-testing" id="toc-phase-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#phase-2-hypothesis-property-based-testing">Phase 2 — Hypothesis Property-Based Testing</a></li>
+  <li><a href="#phase-3-pep-specification-compliance" id="toc-phase-3-pep-specification-compliance" class="nav-link" data-scroll-target="#phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</a></li>
+  <li><a href="#phase-4-static-flow-analysis" id="toc-phase-4-static-flow-analysis" class="nav-link" data-scroll-target="#phase-4-static-flow-analysis">Phase 4 — Static Flow Analysis</a></li>
   <li><a href="#agent-resolution" id="toc-agent-resolution" class="nav-link" data-scroll-target="#agent-resolution">Agent Resolution</a></li>
+  <li><a href="#disclaimer" id="toc-disclaimer" class="nav-link" data-scroll-target="#disclaimer">Disclaimer</a></li>
   </ul></li>
-  <li><a href="#file-structure" id="toc-file-structure" class="nav-link" data-scroll-target="#file-structure">File Structure</a></li>
-  <li><a href="#output-structure" id="toc-output-structure" class="nav-link" data-scroll-target="#output-structure">Output Structure</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -151,7 +150,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="architecture" class="level1">
 <h1>Architecture</h1>
-<p>Pytifex is a hybrid system that orchestrates cloud-based LLM generation with local type-checker execution and multi-tiered evaluation. This page walks through every major subsystem so you can orient yourself in the codebase quickly.</p>
+<p>Pytifex is a hybrid system that orchestrates cloud-based LLM generation with local type-checker execution and multi-phased evaluation. This page walks through every major subsystem so you can orient yourself in the codebase quickly.</p>
 <hr>
 <section id="system-overview" class="level2">
 <h2 class="anchored" data-anchor-id="system-overview">System Overview</h2>
@@ -183,17 +182,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </blockquote>
 <pre class="text"><code>┌──────────────────────────────────────────────────────────┐
 │                     Cloud (Gemini)                       │
-│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐ │
-│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │ │
-│  └─────────────┘  └────────────┘  └───────────────────┘ │
+│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐  │
+│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │  │
+│  └─────────────┘  └────────────┘  └───────────────────┘  │
 └────────────────────────┬─────────────────────────────────┘
                          │ API calls
 ┌────────────────────────▼─────────────────────────────────┐
 │                   Local Machine                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐ │
-│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │ │
-│  │   Mining     │  │  Execution   │  │  Evaluation    │ │
-│  └──────────────┘  └──────────────┘  └────────────────┘ │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │  │
+│  │   Mining     │  │  Execution   │  │  Evaluation    │  │
+│  └──────────────┘  └──────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────┘</code></pre>
 <hr>
 </section>
@@ -260,9 +259,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="evaluation-system-comprehensive_eval.py" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</h2>
-<p>Evaluation proceeds tier-by-tier from highest confidence to lowest. Once a tier produces a confident verdict, later tiers are skipped.</p>
-<section id="tier-0-oracle" class="level3">
-<h3 class="anchored" data-anchor-id="tier-0-oracle">Tier 0 — Oracle</h3>
+<p>Evaluation proceeds phase-by-phase from highest confidence to lowest. Once a phase produces a confident verdict, later phases are skipped.</p>
+<section id="phase-0-oracle" class="level3">
+<h3 class="anchored" data-anchor-id="phase-0-oracle">Phase 0 — Oracle</h3>
 <p><strong>Modules:</strong> <code>oracle.py</code>, <code>source_analysis.py</code></p>
 <p>AST-based analysis that identifies definitive PEP violations without running the code.</p>
 <ul>
@@ -276,19 +275,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>                <span class="kw">and</span> finding.error_code <span class="op">==</span> diag.error_code):</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            matched <span class="op">=</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="tier-1-runtime-crash-detection" class="level3">
-<h3 class="anchored" data-anchor-id="tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</h3>
+<section id="phase-1-runtime-crash-detection" class="level3">
+<h3 class="anchored" data-anchor-id="phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</h3>
 <p>Executes the source code in a sandboxed subprocess and catches runtime exceptions that signal a genuine type error:</p>
 <ul>
 <li><code>TypeError</code></li>
 <li><code>KeyError</code></li>
 <li><code>AttributeError</code></li>
 </ul>
-<p>The tier walks the <strong>full traceback</strong> including exception chains (<code>__cause__</code> / <code>__context__</code>) and also <strong>isolates <code>try</code>/<code>except</code> bodies</strong> to surface swallowed errors.</p>
+<p>The tool walks the <strong>full traceback</strong> including exception chains (<code>__cause__</code> / <code>__context__</code>) and also <strong>isolates <code>try</code>/<code>except</code> bodies</strong> to surface swallowed errors.</p>
 <p><strong>Confidence:</strong> 0.95–1.0</p>
 </section>
-<section id="tier-2-hypothesis-property-based-testing" class="level3">
-<h3 class="anchored" data-anchor-id="tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</h3>
+<section id="phase-2-hypothesis-property-based-testing" class="level3">
+<h3 class="anchored" data-anchor-id="phase-2-hypothesis-property-based-testing">Phase 2 — Hypothesis Property-Based Testing</h3>
 <p><strong>Module:</strong> <code>hypothesis_tier2.py</code></p>
 <p>Extracts function signatures via AST inspection, builds <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> strategies from type hints, and runs <code>@given</code> tests to find runtime type violations.</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># hypothesis_tier2.py (conceptual)</span></span>
@@ -297,17 +296,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">@given</span>(strategy)</span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> test(args):</span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    func(<span class="op">*</span>args)                              <span class="co"># any TypeError ⇒ real bug</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Targeted tests from <code>targeted_tests.py</code> are also executed in this tier.</p>
+<p>Targeted tests from <code>targeted_tests.py</code> are also executed in this phase.</p>
 </section>
-<section id="tier-3-pep-specification-compliance" class="level3">
-<h3 class="anchored" data-anchor-id="tier-3-pep-specification-compliance">Tier 3 — PEP Specification Compliance</h3>
+<section id="phase-3-pep-specification-compliance" class="level3">
+<h3 class="anchored" data-anchor-id="phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</h3>
 <p>Matches a curated set of <code>PEP_RULES</code> (regex patterns mapped to expected checker behaviour) against each checker’s output lines. Covered PEPs:</p>
 <blockquote class="blockquote">
 <p>484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673, 675, 681, 692, 695, 696, 698, 705, 742</p>
 </blockquote>
 </section>
-<section id="tier-4-static-flow-analysis" class="level3">
-<h3 class="anchored" data-anchor-id="tier-4-static-flow-analysis">Tier 4 — Static Flow Analysis</h3>
+<section id="phase-4-static-flow-analysis" class="level3">
+<h3 class="anchored" data-anchor-id="phase-4-static-flow-analysis">Phase 4 — Static Flow Analysis</h3>
 <p><strong>Module:</strong> <code>static_tier4.py</code></p>
 <p>A collection of lightweight static checks:</p>
 <table class="caption-top table">
@@ -350,48 +349,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Any example still marked <code>UNCERTAIN</code> after all tiers is forwarded to a <strong>Gemini API call</strong> for a final LLM-based verdict.</p>
 <hr>
 </section>
-</section>
-<section id="file-structure" class="level2">
-<h2 class="anchored" data-anchor-id="file-structure">File Structure</h2>
-<pre class="text"><code>src/tc_disagreement/
-├── main.py              # CLI entry point &amp; argument parsing
-├── pipeline.py          # Core generation/filtering pipeline
-├── github_issues.py     # GitHub issue mining
-├── prompts.py           # LLM prompt construction
-├── patterns.py          # Divergence pattern definitions
-├── agent.py             # Gemini API client (Pydantic model)
-├── run_checkers.py      # Type checker execution
-├── config.py            # CHECKERS dict and BASE_GEN_DIR
-├── comprehensive_eval.py # Multi-tier evaluation orchestrator
-├── oracle.py            # Tier 0: AST-based PEP oracle
-├── source_analysis.py   # AST analysis for PEP violations
-├── hypothesis_tier2.py  # Tier 2: Hypothesis property testing
-├── targeted_tests.py    # Targeted test generation
-├── static_tier4.py      # Tier 4: Static flow analysis
-├── code_metrics.py      # Code complexity metrics
-├── generate_json.py     # LLM output parsing
-├── eval.py              # Legacy LLM-based evaluation
-├── scoring.py           # Scoring logic
-└── rederive_statuses.py # Status re-derivation</code></pre>
-<hr>
-</section>
-<section id="output-structure" class="level2">
-<h2 class="anchored" data-anchor-id="output-structure">Output Structure</h2>
-<p>Each pipeline run produces a timestamped directory under <code>generated_examples/</code>:</p>
-<pre class="text"><code>generated_examples/
-└── 2026-04-08_12-30-00/
-    ├── source_files/                      # .py files for each disagreement
-    ├── tests/                             # Ephemeral Tier 1/2 test snippets
-    ├── results.json                       # Raw checker outputs and statuses
-    └── evaluation_comprehensive.json      # Tiered evaluation verdicts</code></pre>
-<ul>
-<li><strong><code>source_files/</code></strong> — One <code>.py</code> file per divergent example, named by index (e.g., <code>example_001.py</code>).</li>
-<li><strong><code>tests/</code></strong> — Throwaway test scripts generated by Tier 1 (crash detection) and Tier 2 (Hypothesis). These are kept for reproducibility but are not part of the permanent test suite.</li>
-<li><strong><code>results.json</code></strong> — Maps each example to the raw stdout/stderr and exit-code status from every checker.</li>
-<li><strong><code>evaluation_comprehensive.json</code></strong> — The final tiered verdicts, including which tier resolved each example, the confidence score, and which checker(s) were deemed correct.</li>
-</ul>
+<section id="disclaimer" class="level3">
+<h3 class="anchored" data-anchor-id="disclaimer">Disclaimer</h3>
+<p>Since Pytifex is a research tool under heavy development the architecture of the evaluation can change in the future.</p>
 
 
+</section>
 </section>
 </section>
 

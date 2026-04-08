@@ -166,7 +166,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="the-10-built-in-patterns" class="level2">
 <h2 class="anchored" data-anchor-id="the-10-built-in-patterns">The 10 Built-In Patterns</h2>
-<p>Patterns are defined as <code>DivergencePattern</code> dataclass instances in <a href="https://github.com/benedekaibas/pytifex-demo/blob/main/src/tc_disagreement/patterns.py"><code>patterns.py</code></a>:</p>
+<p>Patterns are defined as <code>DivergencePattern</code> dataclass instances in <a href="https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/patterns.py"><code>patterns.py</code></a>:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DivergencePattern:</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">id</span>: <span class="bu">str</span>            <span class="co"># Unique kebab-case identifier</span></span>
@@ -510,7 +510,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    shape.draw()</span>
 <span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>render(Circle())  <span class="co"># Does Circle satisfy Drawable? Checkers disagree.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Some checkers require the default value to match exactly; others only check the signature shape.</p>
+<p>Some checkers require the default value to match exactly while others only check the signature shape.</p>
 </section>
 <section id="typeddict-with-mixed-requirednotrequired-typed-dict-total" class="level3">
 <h3 class="anchored" data-anchor-id="typeddict-with-mixed-requirednotrequired-typed-dict-total">TypedDict with mixed Required/NotRequired (<code>typed-dict-total</code>)</h3>

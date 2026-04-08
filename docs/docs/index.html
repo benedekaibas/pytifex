@@ -135,7 +135,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="pytifex-automated-differential-testing-for-python-type-checkers" class="level1">
 <h1>Pytifex — Automated Differential Testing for Python Type Checkers</h1>
-<p><a href="https://github.com/benedekaibas/pytifex-demo"><img src="https://img.shields.io/badge/github-pytifex--demo-blue?logo=github.png" class="img-fluid" alt="GitHub"></a> <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" class="img-fluid" alt="Python 3.12+"></a> <a href="https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" class="img-fluid" alt="License: MIT"></a></p>
+<p><a href="https://github.com/benedekaibas/pytifex"><img src="https://img.shields.io/badge/github-pytifex-blue?logo=github.png" class="img-fluid" alt="GitHub"></a> <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" class="img-fluid" alt="Python 3.12+"></a> <a href="https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" class="img-fluid" alt="License: MIT"></a></p>
 <p>Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-tiered evaluation.</p>
 <section id="how-it-works" class="level2">
 <h2 class="anchored" data-anchor-id="how-it-works">How It Works</h2>
@@ -180,12 +180,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="quick-start" class="level2">
 <h2 class="anchored" data-anchor-id="quick-start">Quick Start</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/benedekaibas/pytifex-demo.git</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> pytifex-demo/src/tc_disagreement</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">--num-examples</span> 5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytifex</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <blockquote class="blockquote">
 <p><strong>Note:</strong> Pytifex is a research tool developed for a senior comprehensive project. It implements a bug-seeded mutation methodology for proactively finding type checker bugs before users encounter them.</p>
 </blockquote>
