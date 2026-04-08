@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 try:
     from .source_analysis import SourceFinding, analyze_source
 except ImportError:
-    from source_analysis import SourceFinding, analyze_source
+    from .source_analysis import SourceFinding, analyze_source
 
 
 # DATA CLASSES

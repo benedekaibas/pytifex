@@ -126,7 +126,7 @@ Options:
             results_path = f"{base_path}/results.json"
 
             if args.eval_method == "comprehensive":
-                from comprehensive_eval import evaluate_results_comprehensive
+                from .comprehensive_eval import evaluate_results_comprehensive
                 evaluate_results_comprehensive(results_path)
                 eval_path = f"{base_path}/evaluation_comprehensive.json"
             else:
@@ -159,7 +159,7 @@ Options:
 
         elif args.command == "eval":
             # Find the latest results file
-            from config import BASE_GEN_DIR
+            from .config import BASE_GEN_DIR
             import glob
             results_files = sorted(glob.glob(f"{BASE_GEN_DIR}/*/results.json"))
             if not results_files:
@@ -168,7 +168,7 @@ Options:
             results_path = results_files[-1]
 
             if args.eval_method == "comprehensive":
-                from comprehensive_eval import evaluate_results_comprehensive
+                from .comprehensive_eval import evaluate_results_comprehensive
                 evaluate_results_comprehensive(results_path)
                 eval_path = results_path.replace("results.json", "evaluation_comprehensive.json")
             else:
