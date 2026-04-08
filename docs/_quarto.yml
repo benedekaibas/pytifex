@@ -6,7 +6,7 @@ book:
   title: "Pytifex — Automated Differential Testing for Python Type Checkers"
   author: "Benedek Kaibas"
   date: today
-  repo-url: https://github.com/benedekaibas/pytifex-demo
+  repo-url: https://github.com/benedekaibas/pytifex
   repo-actions: [edit]
   repo-branch: main
   repo-subdir: docs
