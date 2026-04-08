@@ -51,8 +51,8 @@ try:
     from .oracle import run_oracle_evaluation, OracleVerdict, OracleFinding
     from .code_metrics import compute_metrics, metrics_to_dict
 except ImportError:
-    from oracle import run_oracle_evaluation, OracleVerdict, OracleFinding
-    from code_metrics import compute_metrics, metrics_to_dict
+    from .oracle import run_oracle_evaluation, OracleVerdict, OracleFinding
+    from .code_metrics import compute_metrics, metrics_to_dict
 
 
 class Verdict(Enum):
@@ -718,7 +718,7 @@ def _run_source_analysis(source_code: str, checker_outputs: dict[str, str]) -> l
     try:
         from .source_analysis import analyze_source
     except ImportError:
-        from source_analysis import analyze_source
+        from .source_analysis import analyze_source
 
     source_findings = analyze_source(source_code)
     if not source_findings:
@@ -1250,7 +1250,7 @@ def determine_verdicts(
                 try:
                     from .source_analysis import analyze_source as _analyze_source
                 except ImportError:
-                    from source_analysis import analyze_source as _analyze_source
+                    from .source_analysis import analyze_source as _analyze_source
                 unfiltered = _analyze_source(source_code)
                 if len(unfiltered) == 0:
                     verdicts[checker] = {
@@ -1306,12 +1306,12 @@ def evaluate_comprehensive(
     try:
         from .targeted_tests import run_targeted_tests
     except ImportError:
-        from targeted_tests import run_targeted_tests
+        from .targeted_tests import run_targeted_tests
 
     try:
         from .static_tier4 import run_tier4
     except ImportError:
-        from static_tier4 import run_tier4
+        from .static_tier4 import run_tier4
 
     oracle_verdicts = run_oracle_evaluation(source_code, checker_outputs)
 

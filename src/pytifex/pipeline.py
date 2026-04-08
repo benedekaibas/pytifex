@@ -286,6 +286,7 @@ def refine_example(
             id=parsed[0]["id"],
             code=parsed[0]["code"],
             metadata=parsed[0].get("metadata", ""),
+            seed_issue=example.seed_issue,
         )
         refined.results = run_all_checkers(refined.code)
 

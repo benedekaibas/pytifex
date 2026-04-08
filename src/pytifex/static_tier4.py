@@ -30,7 +30,7 @@ __all__ = ["run_tier4"]
 try:
     from .comprehensive_eval import _checker_reports_error
 except ImportError:
-    from comprehensive_eval import _checker_reports_error
+    from .comprehensive_eval import _checker_reports_error
 
 
 def _extract_error_lines(output: str) -> list[tuple[int, str]]:
