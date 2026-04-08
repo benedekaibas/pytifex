@@ -1,0 +1,271 @@
+# Architecture
+
+Pytifex is a hybrid system that orchestrates cloud-based LLM generation with
+local type-checker execution and multi-tiered evaluation. This page walks
+through every major subsystem so you can orient yourself in the codebase
+quickly.
+
+---
+
+## System Overview
+
+Pytifex splits work between two execution domains:
+
+| Domain | Responsibilities |
+|--------|-----------------|
+| **Cloud (Gemini API)** | Code generation, refinement of non-divergent examples, and resolution of `UNCERTAIN` evaluation verdicts |
+| **Local machine** | GitHub issue fetching, type-checker execution via `subprocess`, AST analysis, runtime crash detection, Hypothesis testing, and static flow analysis |
+
+> **Important:** Type-checker outputs are *real*. Every status comes from
+> actually invoking `mypy`, `pyrefly`, `ty`, and `pyright` in a subprocess —
+> never from LLM simulation.
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│                     Cloud (Gemini)                       │
+│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐ │
+│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │ │
+│  └─────────────┘  └────────────┘  └───────────────────┘ │
+└────────────────────────┬─────────────────────────────────┘
+                         │ API calls
+┌────────────────────────▼─────────────────────────────────┐
+│                   Local Machine                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐ │
+│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │ │
+│  │   Mining     │  │  Execution   │  │  Evaluation    │ │
+│  └──────────────┘  └──────────────┘  └────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Pipeline Flow
+
+The core pipeline lives in `pipeline.py` and runs five sequential steps.
+
+### Step 0 — Seed Mining
+
+**Module:** `github_issues.py`
+
+Fetches closed bug-fix issues from upstream type-checker repositories via the
+GitHub REST API:
+
+- `python/mypy`
+- `facebook/pyrefly`
+- `astral-sh/ty`
+- `microsoft/pyright`
+- `zubanls/zuban`
+
+Only confirmed bugs are kept — issues whose `state_reason` is `"not_planned"`
+are filtered out. Python code blocks are extracted from issue bodies with a
+fenced-code-block regex. For Pyrefly, sandbox URLs are also handled by
+base64-decoding the encoded source.
+
+```python
+# Simplified seed extraction logic
+for issue in fetch_closed_issues(repo, label="bug"):
+    if issue["state_reason"] == "not_planned":
+        continue
+    snippets = extract_python_blocks(issue["body"])
+    seeds.extend(snippets)
+```
+
+### Step 1 — Code Generation
+
+**Modules:** `prompts.py`, `agent.py`
+
+A batch of 3–5 seed examples is shown to Gemini with a request to generate
+*new* variations that are likely to trigger type-checker disagreements.
+
+```python
+# prompts.py
+prompt = build_seed_based_prompt(seeds[:5])
+
+# Falls back when no seeds are available
+if not seeds:
+    prompt = build_expert_prompt()
+```
+
+The `agent.py` module wraps the Gemini API client using a Pydantic model for
+structured request/response handling.
+
+### Step 2 — Type Checker Execution
+
+**Module:** `pipeline.py` (delegates to `run_checkers.py`)
+
+Every generated example is run through all four checkers. The pipeline compares
+the resulting statuses and retains only *disagreements* — cases where at least
+two checkers produce different verdicts.
+
+```python
+statuses = run_all_checkers(example)  # e.g. {"mypy": "error", "pyrefly": "ok", ...}
+
+if len(set(statuses.values())) > 1:
+    divergent_examples.append(example)
+```
+
+### Step 3 — Refinement
+
+**Module:** `pipeline.py`
+
+Examples that did *not* diverge are sent back to the LLM together with the
+real checker feedback. The refinement prompt encourages the model to tweak the
+code so that it triggers a disagreement.
+
+```python
+for attempt in range(max_refinements):
+    refined = agent.generate(build_refinement_prompt(example, statuses))
+    new_statuses = run_all_checkers(refined)
+    if len(set(new_statuses.values())) > 1:
+        divergent_examples.append(refined)
+        break
+```
+
+### Step 4 — Evaluation
+
+**Module:** `comprehensive_eval.py`
+
+All divergent examples are passed through a multi-tiered evaluation system that
+determines which checker is correct. See the next section for details.
+
+---
+
+## Evaluation System (`comprehensive_eval.py`)
+
+Evaluation proceeds tier-by-tier from highest confidence to lowest. Once a tier
+produces a confident verdict, later tiers are skipped.
+
+### Tier 0 — Oracle
+
+**Modules:** `oracle.py`, `source_analysis.py`
+
+AST-based analysis that identifies definitive PEP violations without running
+the code.
+
+- `source_analysis.py` parses the source and extracts typing-rule facts (e.g.,
+  "line 12 assigns `int` to a variable annotated `str`").
+- `oracle.py` matches these findings against each checker's diagnostics using
+  **line tolerance ±5** and **error-code matching**.
+
+```python
+# oracle.py (simplified)
+for finding in oracle_findings:
+    for diag in checker_diagnostics:
+        if (abs(finding.line - diag.line) <= 5
+                and finding.error_code == diag.error_code):
+            matched = True
+```
+
+### Tier 1 — Runtime Crash Detection
+
+Executes the source code in a sandboxed subprocess and catches runtime
+exceptions that signal a genuine type error:
+
+- `TypeError`
+- `KeyError`
+- `AttributeError`
+
+The tier walks the **full traceback** including exception chains
+(`__cause__` / `__context__`) and also **isolates `try`/`except` bodies** to
+surface swallowed errors.
+
+**Confidence:** 0.95–1.0
+
+### Tier 2 — Hypothesis Property-Based Testing
+
+**Module:** `hypothesis_tier2.py`
+
+Extracts function signatures via AST inspection, builds
+[Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints,
+and runs `@given` tests to find runtime type violations.
+
+```python
+# hypothesis_tier2.py (conceptual)
+sig = extract_signature(func_node)           # AST-based
+strategy = build_strategy_from_hints(sig)    # maps hints → st.*
+@given(strategy)
+def test(args):
+    func(*args)                              # any TypeError ⇒ real bug
+```
+
+Targeted tests from `targeted_tests.py` are also executed in this tier.
+
+### Tier 3 — PEP Specification Compliance
+
+Matches a curated set of `PEP_RULES` (regex patterns mapped to expected
+checker behaviour) against each checker's output lines. Covered PEPs:
+
+> 484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673,
+> 675, 681, 692, 695, 696, 698, 705, 742
+
+### Tier 4 — Static Flow Analysis
+
+**Module:** `static_tier4.py`
+
+A collection of lightweight static checks:
+
+| Check | Description |
+|-------|-------------|
+| Import availability | Verifies that imported names actually exist in their modules |
+| Variance constraints | Validates covariance / contravariance on generic parameters |
+| Type narrowing flow | Traces narrowing guards (`isinstance`, `is None`, etc.) through control flow |
+| Nominal type boundaries | Ensures structural types aren't used where nominal types are required |
+| Match exhaustiveness | Confirms `match` statements cover all variants |
+
+### Agent Resolution
+
+Any example still marked `UNCERTAIN` after all tiers is forwarded to a
+**Gemini API call** for a final LLM-based verdict.
+
+---
+
+## File Structure
+
+```text
+src/tc_disagreement/
+├── main.py              # CLI entry point & argument parsing
+├── pipeline.py          # Core generation/filtering pipeline
+├── github_issues.py     # GitHub issue mining
+├── prompts.py           # LLM prompt construction
+├── patterns.py          # Divergence pattern definitions
+├── agent.py             # Gemini API client (Pydantic model)
+├── run_checkers.py      # Type checker execution
+├── config.py            # CHECKERS dict and BASE_GEN_DIR
+├── comprehensive_eval.py # Multi-tier evaluation orchestrator
+├── oracle.py            # Tier 0: AST-based PEP oracle
+├── source_analysis.py   # AST analysis for PEP violations
+├── hypothesis_tier2.py  # Tier 2: Hypothesis property testing
+├── targeted_tests.py    # Targeted test generation
+├── static_tier4.py      # Tier 4: Static flow analysis
+├── code_metrics.py      # Code complexity metrics
+├── generate_json.py     # LLM output parsing
+├── eval.py              # Legacy LLM-based evaluation
+├── scoring.py           # Scoring logic
+└── rederive_statuses.py # Status re-derivation
+```
+
+---
+
+## Output Structure
+
+Each pipeline run produces a timestamped directory under `generated_examples/`:
+
+```text
+generated_examples/
+└── 2026-04-08_12-30-00/
+    ├── source_files/                      # .py files for each disagreement
+    ├── tests/                             # Ephemeral Tier 1/2 test snippets
+    ├── results.json                       # Raw checker outputs and statuses
+    └── evaluation_comprehensive.json      # Tiered evaluation verdicts
+```
+
+- **`source_files/`** — One `.py` file per divergent example, named by index
+  (e.g., `example_001.py`).
+- **`tests/`** — Throwaway test scripts generated by Tier 1 (crash detection)
+  and Tier 2 (Hypothesis). These are kept for reproducibility but are not part
+  of the permanent test suite.
+- **`results.json`** — Maps each example to the raw stdout/stderr and
+  exit-code status from every checker.
+- **`evaluation_comprehensive.json`** — The final tiered verdicts, including
+  which tier resolved each example, the confidence score, and which checker(s)
+  were deemed correct.

@@ -1,0 +1,51 @@
+# Pytifex — Automated Differential Testing for Python Type Checkers
+
+[![GitHub](https://img.shields.io/badge/github-pytifex--demo-blue?logo=github)](https://github.com/benedekaibas/pytifex-demo)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE)
+
+Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-tiered evaluation.
+
+## How It Works
+
+```text
+ Mine bugs from        Generate code         Run 4 type           Evaluate which
+ GitHub issues    →    variations via    →    checkers on      →   checker is
+ (mypy, ty, ...)       Gemini LLM            each example         correct
+```
+
+1. **Mine** — Fetch real bug reports (false positives, false negatives) from mypy, pyrefly, ty, and pyright GitHub repositories
+2. **Mutate** — Use the bugs as seeds for Gemini to generate new code targeting similar edge cases
+3. **Test** — Run mypy, pyrefly, zuban, and ty on each generated example; keep only disagreements
+4. **Evaluate** — Determine which checker is correct using runtime crash detection, Hypothesis testing, PEP spec matching, and AST analysis
+
+## Type Checkers Tested
+
+| Checker | Version |
+|---------|---------|
+| [mypy](https://github.com/python/mypy) | 1.19.0 |
+| [pyrefly](https://github.com/facebook/pyrefly) | 0.44.2 |
+| [zuban](https://pypi.org/project/zuban/) | 0.3.0 |
+| [ty](https://github.com/astral-sh/ty) | 0.0.1-alpha.32 |
+
+## Quick Start
+
+```bash
+git clone https://github.com/benedekaibas/pytifex-demo.git
+cd pytifex-demo/src/tc_disagreement
+
+export GEMINI_API_KEY=your_key
+
+uv run main.py --num-examples 5
+```
+
+> **Note:** Pytifex is a research tool developed for a senior comprehensive project. It implements a bug-seeded mutation methodology for proactively finding type checker bugs before users encounter them.
+
+## Documentation
+
+- **[Getting Started](getting-started.qmd)** — Installation, setup, and first run
+- **[Architecture](architecture.qmd)** — System design, pipeline flow, and file structure
+- **[Bug Mining & Mutation](bug-mining.qmd)** — How seeds are mined from GitHub and mutated into test cases
+- **[Evaluation System](evaluation.qmd)** — Multi-tiered evaluation: runtime, Hypothesis, PEP specs, static analysis
+- **[Type Checkers](checkers.qmd)** — How checkers are invoked, output parsed, and how to add new ones
+- **[Divergence Patterns](patterns.qmd)** — The 10 built-in edge-case patterns and how to add more

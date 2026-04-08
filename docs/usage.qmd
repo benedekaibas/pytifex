@@ -1,0 +1,77 @@
+# Usage
+
+Run from the `src/tc_disagreement` directory.
+
+```bash
+# Full pipeline: mine → generate → filter → evaluate
+uv run main.py
+
+# Target a specific number of disagreements
+uv run main.py --num-examples 10
+
+# Use a more capable model
+uv run main.py --model gemini-2.5-pro
+
+# Skip GitHub seed fetching
+uv run main.py --no-github
+
+# Verbose output
+uv run main.py -v
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `uv run main.py` | Full pipeline (generate + evaluate) |
+| `uv run main.py full` | Same as above |
+| `uv run main.py generate` | Generate disagreements only |
+| `uv run main.py check` | Run type checkers on existing examples |
+| `uv run main.py eval` | Evaluate existing results |
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--num-examples N` | `5` | Target number of disagreements to find |
+| `--batch-size N` | `15` | Examples to generate per LLM batch |
+| `--max-attempts N` | `5` | Maximum generation attempts |
+| `--max-refinements N` | `2` | Refinement attempts per non-divergent example |
+| `--model MODEL` | `gemini-2.5-flash` | Gemini model to use |
+| `--eval-method METHOD` | `comprehensive` | Evaluation method |
+| `--no-github` | — | Skip fetching seeds from GitHub issues |
+| `-v, --verbose` | — | Show all examples, not just disagreements |
+
+## Example Output
+
+```
+============================================================
+PYTIFEX - Full Pipeline (with disagreement filtering)
+============================================================
+
+[STEP 1/2] Generating examples with disagreement filtering...
+Target: 2 disagreement examples
+Using model: gemini-2.5-flash
+
+[STEP 0] Fetching seed examples from GitHub issues...
+  Found 5 code examples from python/mypy
+  Found 5 code examples from astral-sh/ty
+Total: 10 examples from GitHub issues
+
+[Attempt 1/5] Generating batch of 15...
+  Using 5 GitHub issue seeds
+  Parsed 19 examples, running type checkers...
+  ✓ generic-typevar-bound: DISAGREEMENT {'mypy': 'ok', 'pyrefly': 'ok', 'zuban': 'error', 'ty': 'ok'}
+  ✓ self-in-protocol:      DISAGREEMENT {'mypy': 'error', 'pyrefly': 'error', 'zuban': 'error', 'ty': 'ok'}
+  Progress: 2/2 disagreements found
+
+GENERATION COMPLETE: 2 disagreements from 19 total examples
+```
+
+## Troubleshooting
+
+**No disagreements found** — Increase `--max-attempts` or `--batch-size`, or try `--model gemini-2.5-pro`.
+
+**GitHub rate limit errors** — Set `GITHUB_TOKEN`, or use `--no-github`.
+
+**Type checker not found** — Use `uv run` (auto-installs), or manually `pip install mypy pyrefly zuban ty`.

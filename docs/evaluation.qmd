@@ -1,0 +1,297 @@
+# Evaluation System
+
+Once Pytifex finds a disagreement — code where type checkers produce different verdicts — it needs to determine **which checker is right**. This page explains the multi-tiered evaluation system that establishes ground truth.
+
+---
+
+## Design Philosophy
+
+The key insight: **runtime behavior is the ultimate ground truth.** If code raises `TypeError` at runtime, any type checker that reported "OK" is definitively wrong. The evaluation system prioritizes runtime evidence over static analysis and falls back to PEP specification matching only when runtime testing is inconclusive.
+
+All tiers always run and contribute evidence. The final verdict is determined by combining findings from all tiers, weighted by confidence.
+
+---
+
+## Evaluation Tiers
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│  Tier 0: Oracle — AST-based PEP violation detection         │
+│  Confidence: 0.85–0.95                                      │
+├─────────────────────────────────────────────────────────────┤
+│  Tier 1: Runtime Crash Detection                            │
+│  Confidence: 0.95–1.0                                       │
+├─────────────────────────────────────────────────────────────┤
+│  Tier 2: Hypothesis Property-Based Testing                  │
+│  Confidence: 0.85                                           │
+├─────────────────────────────────────────────────────────────┤
+│  Tier 3: PEP Specification Compliance                       │
+│  Confidence: 0.80–0.85                                      │
+├─────────────────────────────────────────────────────────────┤
+│  Tier 4: Static Flow Analysis                               │
+│  Confidence: 0.80                                           │
+├─────────────────────────────────────────────────────────────┤
+│  Agent Resolution: LLM-based verdict for UNCERTAIN cases    │
+│  Confidence: 0.70                                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Tier 0 — Oracle (`oracle.py`)
+
+The oracle performs **AST-based source analysis** to find violations that MUST exist according to PEP specifications, independent of any checker output.
+
+### How It Works
+
+1. **`source_analysis.py`** parses the source code and emits `SourceFinding` objects — e.g., "line 12 assigns `int` to a variable annotated `str`, violating PEP 484":
+
+   ```python
+   @dataclass
+   class SourceFinding:
+       line: int
+       rule_id: str        # e.g., "ASSIGN001"
+       pep: int            # e.g., 484
+       message: str
+       confidence: float   # only findings ≥ 0.85 are used
+   ```
+
+2. **`oracle.py`** converts these into `OracleFinding` objects with a category (e.g., `INCOMPATIBLE_ASSIGNMENT`) and then matches them against each checker's diagnostics.
+
+3. **Matching** uses two criteria:
+   - **Line tolerance ±5** — the checker's error must be within 5 lines of the oracle's finding
+   - **Error code matching** — the checker's error code must be in the known set for that category
+
+   ```python
+   # Per-category error codes for each checker
+   CHECKER_ERROR_CODES = {
+       "INCOMPATIBLE_ASSIGNMENT": {
+           "mypy": ["assignment", "arg-type", "misc"],
+           "pyrefly": ["bad-assignment"],
+           "ty": ["invalid-assignment"],
+           "zuban": ["assignment", "arg-type", "misc"],
+       },
+       # ... 30+ categories
+   }
+   ```
+
+4. **Verdicts**: If all oracle findings are matched → `CORRECT`. If any are missed → `INCORRECT`. If upstream checker errors blocked detection → `UNCERTAIN`.
+
+### Supported Rule Categories
+
+The oracle covers 30+ rule categories including:
+
+| Category | Example rule IDs |
+|----------|-----------------|
+| Method override incompatibility | `LSP001`, `LSP002` |
+| Final reassignment / subclassing | `FINAL001`–`FINAL004` |
+| Protocol instantiation / conformance | `PROTO001`–`PROTO003` |
+| TypedDict field violations | `TDICT001`–`TDICT004` |
+| ParamSpec / Concatenate misuse | `PARAMSPEC001`–`PARAMSPEC004` |
+| TypeGuard / TypeIs misuse | `TYPEGUARD001`, `TYPEIS001` |
+| Variance violations | `VARIANCE001`, `VARIANCE002` |
+
+---
+
+## Tier 1 — Runtime Crash Detection
+
+Executes the generated code and catches type-related runtime exceptions:
+
+```python
+TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError)
+```
+
+### Full Traceback Walking
+
+Tier 1 doesn't just catch the top-level exception — it walks the **entire traceback** and inspects **exception chains** (`__cause__` / `__context__`):
+
+```python
+def _collect_chained_exceptions(exc):
+    chain = []
+    current = exc
+    while current is not None:
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    chain.reverse()  # root-cause first
+    return chain
+```
+
+### Isolating Swallowed Errors
+
+Code often contains `try`/`except` blocks that catch and hide type errors. Tier 1 uses AST analysis to find `try` bodies and re-executes them in isolation:
+
+```python
+try_bodies = _extract_try_bodies(source_code)
+for start_line, end_line, body_source in try_bodies:
+    isolated_bugs = _run_isolated_code(body_source)
+    # Bugs found here were swallowed by the original try/except
+```
+
+### Verdict Logic
+
+| Runtime result | Checker said "ok" | Checker said "error" |
+|---------------|-------------------|---------------------|
+| Code crashes (TypeError, etc.) | **INCORRECT** (false negative) | **CORRECT** |
+| Code runs fine | UNCERTAIN | UNCERTAIN (possible false positive) |
+
+---
+
+## Tier 2 — Hypothesis Property-Based Testing (`hypothesis_tier2.py`)
+
+Uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs matching declared type annotations and run them through the actual code.
+
+### How It Works
+
+1. **Extract function signatures** — Parse the AST to find all user-defined functions and methods.
+
+2. **Build a live namespace** — Execute the source with `__name__ != "__main__"` to get real callable objects.
+
+3. **Introspect signatures** — Use `inspect.signature()` and `typing.get_type_hints()` to resolve parameter types.
+
+4. **Build Hypothesis strategies** — Map type hints to `hypothesis.strategies`:
+   - `int` → `st.integers()`
+   - `str` → `st.text()`
+   - `list[int]` → `st.lists(st.integers())`
+   - `Optional[str]` → `st.none() | st.text()`
+   - Custom classes → `st.builds(ClassName, ...)`
+
+5. **Run `@given` tests** — Call the function with generated inputs. Any `TypeError`, `KeyError`, or `AttributeError` is a confirmed type bug.
+
+### Targeted Tests
+
+In addition to Hypothesis fuzzing, `targeted_tests.py` generates specific test cases for known patterns (e.g., calling a protocol method with wrong argument types).
+
+---
+
+## Tier 3 — PEP Specification Compliance
+
+Matches a curated list of `PEP_RULES` against each checker's output. Each rule is a regex pattern paired with the expected behavior:
+
+```python
+@dataclass
+class PEPRule:
+    pep_number: int
+    pattern: str           # regex to match in checker output
+    rule_description: str
+    correct_behavior: str  # "error" or "ok"
+```
+
+### Example Rules
+
+```python
+PEPRule(
+    pep_number=484,
+    pattern=r"NewType.*float",
+    rule_description="float is a valid base for NewType (PEP 484)",
+    correct_behavior="ok",
+)
+
+PEPRule(
+    pep_number=591,
+    pattern=r"[Cc]annot (?:assign|override).*Final",
+    rule_description="Final variables cannot be reassigned (PEP 591)",
+    correct_behavior="error",
+)
+```
+
+### Noise Filtering
+
+The tier skips lines that are notes, info messages, or import-related errors:
+
+```python
+for text_line in output.splitlines():
+    lower = text_line.lower()
+    if "note:" in lower or "info[" in lower:
+        continue  # skip noise
+    if MODULE_IMPORT_RE.search(text_line):
+        continue  # skip import errors
+    if re.search(rule.pattern, text_line, re.IGNORECASE):
+        matched = True
+```
+
+### Covered PEPs
+
+484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673, 675, 681, 692, 695, 696, 698, 705, 742
+
+---
+
+## Tier 4 — Static Flow Analysis (`static_tier4.py`)
+
+A collection of lightweight AST-based checks that run when earlier tiers didn't resolve the verdict:
+
+| Analysis | What it checks |
+|----------|---------------|
+| **Import availability** | Whether imported typing features exist in the claimed module/Python version |
+| **Variance constraints** | Covariant TypeVar used in contravariant position, etc. |
+| **Type narrowing flow** | Whether `isinstance`, `TypeIs`, `TypeGuard` narrowing is correctly applied |
+| **Nominal type boundaries** | `NewType` and `TypeAliasType` nominal vs. structural behavior |
+| **Match exhaustiveness** | Whether `match`/`case` covers all variants (unreachable `case _`) |
+| **Lambda inference** | Complex inference limitations with lambdas |
+
+---
+
+## Agent Resolution
+
+Any verdict still `UNCERTAIN` after all tiers is forwarded to a Gemini API call for LLM-based resolution:
+
+```python
+prompt = f"""
+Source code: {source_code}
+Checker: {checker_name}
+Checker output: {checker_output}
+Other checkers' outputs: {other_outputs}
+
+Determine whether this type checker's behavior is CORRECT, INCORRECT, or UNCERTAIN.
+Cite the specific PEP section that supports your verdict.
+"""
+```
+
+The response is parsed as JSON with `verdict`, `reason`, `pep_citation`, and `confidence` fields.
+
+---
+
+## Running Evaluation
+
+```bash
+# Run full pipeline (generation + evaluation)
+uv run main.py
+
+# Evaluate existing results only
+uv run main.py eval
+
+# Use legacy LLM-based evaluation instead
+uv run main.py --eval-method all
+```
+
+### Evaluation Output
+
+Results are saved to `evaluation_comprehensive.json`:
+
+```json
+{
+  "method": "comprehensive_tiered",
+  "tier_distribution": {"0": 3, "1": 2, "2": 5, "3": 4, "4": 1},
+  "summary": {
+    "mypy": {"correct": 8, "incorrect": 4, "uncertain": 3},
+    "pyrefly": {"correct": 6, "incorrect": 5, "uncertain": 4}
+  },
+  "evaluations": [
+    {
+      "filename": "protocol-defaults-1.py",
+      "tier_reached": 1,
+      "checker_verdicts": {
+        "mypy": {"verdict": "INCORRECT", "tier": 1, "confidence": 1.0},
+        "pyrefly": {"verdict": "CORRECT", "tier": 1, "confidence": 1.0}
+      }
+    }
+  ]
+}
+```
+
+### Verdict Meanings
+
+| Verdict | Meaning |
+|---------|---------|
+| `CORRECT` | Checker accurately identified all issues (or correctly reported no issues) |
+| `INCORRECT` | Checker missed a real bug (false negative) or flagged correct code (false positive) |
+| `UNCERTAIN` | Not enough evidence to determine correctness |

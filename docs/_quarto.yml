@@ -1,0 +1,37 @@
+project:
+  type: book
+  output-dir: _book
+
+book:
+  title: "Pytifex — Automated Differential Testing for Python Type Checkers"
+  author: "Benedek Kaibas"
+  date: today
+  repo-url: https://github.com/benedekaibas/pytifex-demo
+  repo-actions: [edit]
+  repo-branch: main
+  repo-subdir: docs
+  chapters:
+    - index.qmd
+    - part: "Setup"
+      chapters:
+        - getting-started.qmd
+        - installation.qmd
+        - usage.qmd
+    - part: "How It Works"
+      chapters:
+        - architecture.qmd
+        - bug-mining.qmd
+        - evaluation.qmd
+    - part: "Reference"
+      chapters:
+        - checkers.qmd
+        - patterns.qmd
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-copy: true
+    code-overflow: wrap
+    highlight-style: github

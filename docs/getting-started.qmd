@@ -1,0 +1,53 @@
+# Getting Started
+
+## Prerequisites
+
+- **Python 3.12+**
+- [**uv**](https://docs.astral.sh/uv/) — the recommended package runner (handles all dependency installation automatically)
+- A **Google Gemini API key** — [get one here](https://aistudio.google.com/apikey)
+
+## Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/benedekaibas/pytifex-demo.git
+cd pytifex-demo/src/tc_disagreement
+
+# 2. Set your API key
+export GEMINI_API_KEY=your_key
+
+# 3. Run the full pipeline
+uv run main.py --num-examples 5
+```
+
+That's it. `uv` automatically installs all dependencies (including all four type checkers) on first run.
+
+## What Happens When You Run It
+
+1. **Seed mining** — Pytifex fetches closed bug reports from mypy, pyrefly, and ty GitHub repositories
+2. **Code generation** — Seeds are sent to Gemini, which generates new code variations targeting similar edge cases
+3. **Type checking** — Each generated example is run through mypy, pyrefly, zuban, and ty
+4. **Filtering** — Only examples where checkers *disagree* are kept
+5. **Evaluation** — A multi-tiered system determines which checker is correct
+
+Output is saved to `generated_examples/<timestamp>/`.
+
+## Optional: GitHub Token
+
+Without a token, GitHub API requests are limited to 60/hour. For heavier usage:
+
+```bash
+export GITHUB_TOKEN=ghp_your_token    # raises limit to 5,000/hour
+```
+
+Or skip GitHub entirely:
+
+```bash
+uv run main.py --no-github
+```
+
+## Next Steps
+
+- **[Installation](installation.qmd)** — Detailed setup including manual installation without `uv`
+- **[Usage](usage.qmd)** — Full CLI reference, commands, and options
+- **[Architecture](architecture.qmd)** — Understand how the pipeline works under the hood
