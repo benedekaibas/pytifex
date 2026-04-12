@@ -202,8 +202,8 @@ def generate_with_filtering(
             metadata = item.get("metadata", "")
             seed_issue = extract_seed_issue(metadata)
 
-            # Skip examples without a valid seed_issue
-            if seed_issue is None:
+            # Skip examples without a valid seed_issue (only for guided runs)
+            if seed_issue is None and use_github_seeds:
                 if verbose:
                     print(f"  ⚠️  {item['id']}: SKIPPED (no seed_issue)")
                 continue

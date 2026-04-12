@@ -237,9 +237,7 @@ def run_tier1(
     debug: DebugArtifactCollector | None = None,
 ) -> list[TypeBug]:
     """
-    Tier 1: Execute code and catch type-related runtime exceptions.
-    
-    V2 improvements:
+    Phase 1: Execute code and catch type-related runtime exceptions.
     - Walks the full traceback to find the root cause line
     - Inspects exception chains (__cause__ / __context__)
     - Isolates try/except bodies to surface swallowed type errors
@@ -271,9 +269,7 @@ def run_tier1(
 
 
 
-# =============================================================================
 # TIER 3: PEP SPECIFICATION COMPLIANCE
-# =============================================================================
 
 @dataclass
 class PEPRule:
@@ -652,16 +648,15 @@ MODULE_IMPORT_RE = re.compile(
 
 def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
     """
-    Tier 3: Check against PEP specifications.
-    
+    Phase 3: Check against PEP specifications.
+
     Analyzes the code and checker outputs to determine which checker
     follows the official Python typing specifications.
-    
     Matches PEP rules line-by-line against checker output to avoid
     false matches from note/info lines or module import errors.
     """
     findings = []
-    
+
     for rule in PEP_RULES:
         for checker, output in checker_outputs.items():
             matched = False
@@ -678,17 +673,17 @@ def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
                 if re.search(rule.pattern, text_line, re.IGNORECASE):
                     matched = True
                     break
-            
+
             if not matched:
                 continue
 
             checker_says_error = _checker_reports_error(output, checker)
-            
+
             is_correct = (
                 (rule.correct_behavior == "error" and checker_says_error) or
                 (rule.correct_behavior == "ok" and not checker_says_error)
             )
-            
+
             findings.append({
                 "checker": checker,
                 "pep": rule.pep_number,
@@ -698,15 +693,15 @@ def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
                 "is_correct": is_correct,
                 "confidence": 0.85,
             })
-    
+
     # Also check code patterns that should trigger specific rules
     code_findings = _analyze_code_patterns(source_code, checker_outputs)
     findings.extend(code_findings)
-    
-    # Source-aware analysis: analyze AST independently, then judge each checker
+
+    # Source-aware analysis: analyze AST independently then judge each checker
     source_findings = _run_source_analysis(source_code, checker_outputs)
     findings.extend(source_findings)
-    
+
     return findings
 
 
@@ -800,7 +795,7 @@ def _checker_reports_error(output: str, checker: str = "") -> bool:
 
     if checker == "ty":
         # ty uses "All checks passed!" for clean runs.
-        # Errors are "error[rule-name]:" lines; warnings/infos are not errors.
+        # Errors are "error[rule-name]:", but warnings/infos are not errors.
         # Summary: "Found N diagnostics" (includes warnings/infos).
         if "all checks passed" in output.lower():
             return False
@@ -821,7 +816,7 @@ def _checker_reports_error(output: str, checker: str = "") -> bool:
 def _analyze_code_patterns(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
     """Analyze code for patterns that have clear PEP-defined behavior."""
     findings = []
-    
+
     # Pattern 1: str assigned to Literal (PEP 586)
     if re.search(r':\s*str\s*=', source_code) and re.search(r'Literal\[', source_code):
         # Check if any assignment is str -> Literal
@@ -849,15 +844,13 @@ def _analyze_code_patterns(source_code: str, checker_outputs: dict[str, str]) ->
                                 })
         except SyntaxError:
             pass
-    
+
     return findings
 
 
-# =============================================================================
 # VERDICT DETERMINATION
-# =============================================================================
 
-@dataclass 
+@dataclass
 class FunctionSpan:
     """Represents a function's location in source code."""
     name: str
@@ -872,24 +865,24 @@ def extract_function_spans(source_code: str) -> list[FunctionSpan]:
         tree = ast.parse(source_code)
     except SyntaxError:
         return []
-    
+
     spans = []
-    
+
     class FunctionVisitor(ast.NodeVisitor):
         def __init__(self):
             self.current_class = None
-        
+
         def visit_ClassDef(self, node):
             old = self.current_class
             self.current_class = node.name
             self.generic_visit(node)
             self.current_class = old
-        
+
         def visit_FunctionDef(self, node):
             end = node.end_lineno if hasattr(node, 'end_lineno') else node.lineno + 20
             spans.append(FunctionSpan(node.name, node.lineno, end, self.current_class))
             self.generic_visit(node)
-    
+
     FunctionVisitor().visit(tree)
     return spans
 
@@ -1044,11 +1037,11 @@ def determine_verdicts(
     Determine final verdict for each checker using all available evidence.
 
     Priority:
-      1. Tier 1 runtime crashes (highest confidence — runtime proof)
-      2. Tier 0 Oracle (AST-based ground truth)
-      3. Tier 2 Hypothesis bugs (high confidence — runtime proof via fuzzing)
-      4. Tier 3 PEP specification compliance (checker-specific evidence)
-      5. Tier 4 static flow analysis (checker-specific evidence)
+      1. Phase 1 runtime crashes (highest confidence — runtime proof)
+      2. Phase 0 Oracle (AST-based ground truth)
+      3. Phase 2 Hypothesis bugs (high confidence — runtime proof via fuzzing)
+      4. Phase 3 PEP specification compliance (checker-specific evidence)
+      5. Phase 4 static flow analysis (checker-specific evidence)
       6. False positive detection (oracle clean + checker reports errors)
     """
     if tier4_findings is None:
@@ -1099,7 +1092,7 @@ def determine_verdicts(
                 }
                 continue
 
-        # --- Tier 0: Oracle (AST-based ground truth) ---
+        # Phase 0: Oracle (AST-based ground truth)
         ov = oracle_verdicts.get(checker)
         if ov and ov.verdict != "UNCERTAIN":
             # Before trusting oracle INCORRECT, check if tier3 has evidence
@@ -1142,7 +1135,7 @@ def determine_verdicts(
             }
             continue
 
-        # --- Tier 2: Hypothesis property-based testing ---
+        # Phase 2: Hypothesis property-based testing
         if tier2_bugs_high:
             bugs_caught, bugs_missed = _check_bugs_against_checker(
                 tier2_bugs_high, checker_error_lines, function_spans,
@@ -1166,7 +1159,7 @@ def determine_verdicts(
                 }
                 continue
 
-        # --- Tier 3: PEP specification compliance ---
+        # Phase 3: PEP specification compliance
         # First, check findings tagged to this specific checker
         checker_t3 = [f for f in tier3_findings if f.get("checker") == checker]
         if not checker_t3:
@@ -1197,7 +1190,7 @@ def determine_verdicts(
                 }
                 continue
 
-        # If no checker-specific tier3 finding, check if ANY tier3 finding
+        # If no checker-specific phase 3 finding, check if ANY phase 3 finding
         # established ground truth (a confirmed bug exists). If so, evaluate
         # this checker by whether it reported errors or not.
         if not checker_t3:
@@ -1231,7 +1224,7 @@ def determine_verdicts(
                     }
                     continue
 
-        # --- Tier 4: Static flow analysis ---
+        # Phase 4: Static flow analysis
         checker_t4 = [f for f in tier4_findings if f.get("checker") == checker]
         if checker_t4:
             best = max(checker_t4, key=lambda f: f.get("confidence", 0))
@@ -1244,7 +1237,7 @@ def determine_verdicts(
                 }
                 continue
 
-        # --- False positive detection ---
+        # False positive detection
         if oracle_has_no_findings and not tier1_bugs_only and not tier2_bugs_high and checker_reported_error:
             if not _source_has_uncovered_constructs(source_code):
                 try:
@@ -1279,9 +1272,7 @@ def _get_function_at_line(spans: list[FunctionSpan], line: int) -> Optional[Func
     return None
 
 
-# =============================================================================
 # MAIN EVALUATION FUNCTION
-# =============================================================================
 
 def evaluate_comprehensive(
     source_code: str,
@@ -1293,16 +1284,16 @@ def evaluate_comprehensive(
     """
     Run comprehensive tiered evaluation on a code example.
 
-    All tiers always run and contribute evidence to the final verdict:
-      Tier 1: Runtime crash detection (highest confidence)
-      Tier 2: Hypothesis property-based testing (high confidence)
-      Tier 3: PEP specification compliance (medium-high confidence)
+    All phases always run and contribute evidence to the final verdict:
+      Phase 1: Runtime crash detection (highest confidence)
+      Phase 2: Hypothesis property-based testing (high confidence)
+      Phase 3: PEP specification compliance (medium-high confidence)
     """
     try:
         from .hypothesis_tier2 import run_hypothesis_tier2
     except ImportError:
         from hypothesis_tier2 import run_hypothesis_tier2
-    
+
     try:
         from .targeted_tests import run_targeted_tests
     except ImportError:
@@ -1564,8 +1555,7 @@ def evaluate_results_comprehensive(
     save_tests_dir: str | None = None,
 ) -> dict:
     """
-    Evaluate all files using the comprehensive tiered system.
-    
+    Evaluate all files using the comprehensive tiered system. 
     Args:
         results_path: Path to results.json from the pipeline.
         save_tests_dir: If set, save ephemeral Tier 1/2 test snippets to this directory.
@@ -1577,43 +1567,43 @@ def evaluate_results_comprehensive(
 
     with open(results_path) as f:
         data = json.load(f)
-    
+
     results = data.get("results", [])
     checkers = data.get("checkers_used", ["mypy", "pyrefly", "zuban", "ty"])
-    
+
     all_results = []
     summary_stats = {
         checker: {"correct": 0, "incorrect": 0, "uncertain": 0}
         for checker in checkers
     }
     tier_distribution = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
-    
+
     print("=" * 70)
     print("COMPREHENSIVE TIERED EVALUATION")
     print("=" * 70)
-    print("Tier 0: Oracle (AST-based ground truth)")
-    print("Tier 1: Runtime crash detection")
-    print("Tier 2: Hypothesis property-based testing")
-    print("Tier 3: PEP specification compliance")
-    print("Tier 4: Design differences (uncertain)")
+    print("Phase 0: Oracle (AST-based ground truth)")
+    print("Phase 1: Runtime crash detection")
+    print("Phase 2: Hypothesis property-based testing")
+    print("Phase 3: PEP specification compliance")
+    print("Phase 4: Design differences (uncertain)")
     print(f"Files to evaluate: {len(results)}")
     print("=" * 70)
     print()
-    
+
     for i, file_entry in enumerate(results, 1):
         filepath = file_entry.get("filepath", "")
         filename = file_entry.get("filename", "")
         outputs = file_entry.get("outputs", {})
-        
+
         print(f"[{i}/{len(results)}] {filename}")
-        
+
         try:
             with open(filepath) as f:
                 source_code = f.read()
         except FileNotFoundError:
             print("  [SKIP] File not found")
             continue
-        
+
         file_metrics = metrics_to_dict(compute_metrics(source_code))
         file_entry["metrics"] = file_metrics
 
@@ -1625,44 +1615,44 @@ def evaluate_results_comprehensive(
         all_results.append((result, file_metrics))
         tier_distribution[result.tier_reached] += 1
         collector.save(save_tests_dir, filename)
-        
+
         # Print summary
-        print(f"  Tier reached: {result.tier_reached}")
-        print(f"  Bugs: T1={len(result.tier1_bugs)}, T2={len(result.tier2_bugs)}, T3={len(result.tier3_findings)}")
-        
+        print(f"  Phase reached: {result.tier_reached}")
+        print(f"  Bugs: P1={len(result.tier1_bugs)}, P2={len(result.tier2_bugs)}, P3={len(result.tier3_findings)}")
+
         for checker, verdict in result.checker_verdicts.items():
             v = verdict["verdict"]
             tier = verdict.get("tier", "?")
             if v == "CORRECT":
-                print(f"  ✓ {checker}: CORRECT (tier {tier})")
+                print(f"  ✓ {checker}: CORRECT (phase {tier})")
                 summary_stats[checker]["correct"] += 1
             elif v == "INCORRECT":
-                print(f"  ✗ {checker}: INCORRECT (tier {tier})")
+                print(f"  ✗ {checker}: INCORRECT (phase {tier})")
                 summary_stats[checker]["incorrect"] += 1
             else:
                 print(f"  ? {checker}: UNCERTAIN")
                 summary_stats[checker]["uncertain"] += 1
-        
+
         print()
-    
+
     # Print summary
     print("=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    
-    print(f"\nTier distribution:")
+
+    print("\nPhase distribution:")
     for tier, count in tier_distribution.items():
-        print(f"  Tier {tier}: {count} files")
-    
+        print(f"  Phase {tier}: {count} files")
+
     print(f"\n{'Checker':<12} {'Correct':>10} {'Incorrect':>10} {'Uncertain':>10}")
     print("-" * 44)
-    
+
     for checker in checkers:
         stats = summary_stats[checker]
         print(f"{checker:<12} {stats['correct']:>10} {stats['incorrect']:>10} {stats['uncertain']:>10}")
-    
+
     print("=" * 70)
-    
+
     # Collect uncertain cases for agent resolution
     uncertain_cases: list[dict] = []
     for result, _ in all_results:
@@ -1750,20 +1740,20 @@ def evaluate_results_comprehensive(
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) < 2:
         print("Usage: python comprehensive_eval.py <results.json> [--save-tests <dir>]")
         print()
         print("Comprehensive tiered evaluation system:")
-        print("  Tier 1: Runtime crash detection (highest confidence)")
-        print("  Tier 2: Mutation + Typeguard testing")
-        print("  Tier 3: PEP specification compliance")
-        print("  Tier 4: Design differences (uncertain)")
+        print("  Phase 1: Runtime crash detection (highest confidence)")
+        print("  Phase 2: Mutation + Typeguard testing")
+        print("  Phase 3: PEP specification compliance")
+        print("  Phase 4: Design differences (uncertain)")
         print()
         print("Options:")
         print("  --save-tests <dir>  Save ephemeral test snippets for debugging")
         sys.exit(1)
-    
+
     save_tests = None
     if "--save-tests" in sys.argv:
         idx = sys.argv.index("--save-tests")
@@ -1772,5 +1762,6 @@ if __name__ == "__main__":
         else:
             print("Error: --save-tests requires a directory argument")
             sys.exit(1)
-    
+
     evaluate_results_comprehensive(sys.argv[1], save_tests_dir=save_tests)
+

@@ -1,6 +1,6 @@
 [project]
 name = "pytifex"
-version = "0.1.3"
+version = "0.1.5"
 description = "Automated mutation-based differential testing for Python type checkers"
 readme = "README.md"
 license = "MIT"
