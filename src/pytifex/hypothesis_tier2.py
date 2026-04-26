@@ -1,5 +1,5 @@
 """
-Tier 2: Signature-Driven Hypothesis Property Testing for Type Constraint Validation.
+Phase 2: Signature-Driven Hypothesis Property Testing for Type Constraint Validation.
 
 This module exercises actual code paths by extracting function/method definitions
 from source, introspecting their signatures + type hints, building Hypothesis
