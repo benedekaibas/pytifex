@@ -8,7 +8,7 @@ verify whether the checker's prediction holds.
 Given a checker diagnostic like:
     Argument 1 to "f" has incompatible type "int"; expected "str"
 
-This tier will:
+This phase will:
 1. Parse the claim: function=f, param=1, bad_type=int, expected=str
 2. Generate a concrete value of the "bad" type: 42
 3. Call f(42) in a sandbox
@@ -38,9 +38,7 @@ from typing import Any, Optional
 from enum import Enum
 
 
-# =============================================================================
 # DATA STRUCTURES
-# =============================================================================
 
 class ClaimVerdict(Enum):
     VALIDATED = "VALIDATED"        # crash confirms the checker's claim
@@ -73,9 +71,7 @@ class ClaimResult:
     details: dict = field(default_factory=dict)
 
 
-# =============================================================================
 # DIAGNOSTIC PARSING — extract structured claims from checker output
-# =============================================================================
 
 # --- mypy / zuban patterns ---
 _MYPY_ARG_INCOMPATIBLE = re.compile(
@@ -378,9 +374,7 @@ def parse_all_claims(checker_outputs: dict[str, str]) -> list[CheckerClaim]:
     return claims
 
 
-# =============================================================================
 # TYPE-TO-VALUE GENERATION
-# =============================================================================
 
 # Map of type name -> concrete value generator
 # Returns (value, description) tuples
@@ -410,7 +404,7 @@ _GENERIC_PATTERNS: list[tuple[re.Pattern, Any]] = [
     (re.compile(r"^frozenset\[(.+)\]$", re.IGNORECASE), lambda inner: (frozenset([_generate_inner(inner)]), f"frozenset({{{_describe_inner(inner)}}})")),
     (re.compile(r"^tuple\[(.+),\s*\.\.\.\]$", re.IGNORECASE), lambda inner: ((_generate_inner(inner),), f"({_describe_inner(inner)},)")),
     (re.compile(r"^Tuple\[(.+),\s*\.\.\.\]$"), lambda inner: ((_generate_inner(inner),), f"({_describe_inner(inner)},)")),
-    (re.compile(r"^tuple\[(.+)\]$", re.IGNORECASE), lambda inner: (tuple(_generate_inner(t.strip()) for t in _split_type_args(inner)), f"tuple(...)")),
+    (re.compile(r"^tuple\[(.+)\]$", re.IGNORECASE), lambda inner: (tuple(_generate_inner(t.strip()) for t in _split_type_args(inner)), "tuple(...)")),
 ]
 
 _DICT_PATTERN = re.compile(r"^(?:dict|Dict)\[(.+),\s*(.+)\]$", re.IGNORECASE)
