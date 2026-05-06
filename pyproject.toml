@@ -41,7 +41,7 @@ build-backend = "hatchling.build"
 max-line-length = 120
 
 [tool.pylint.main]
-fail-under 8.0
+fail-under = 8.0
 disable = [
     "C0114",  # missing module docstring
     "C0115",  # missing class docstring
