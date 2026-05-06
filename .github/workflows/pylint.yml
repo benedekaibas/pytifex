@@ -21,3 +21,5 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint src/pytifex
+    - name: Run tests
+      run: pytest; if [ $? -eq 5 ]; then exit 0; fi
