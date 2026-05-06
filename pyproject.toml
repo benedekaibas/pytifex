@@ -66,3 +66,5 @@ disable = [
     "E0601",
 ]
 
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
