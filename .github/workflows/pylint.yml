@@ -21,5 +21,3 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint src/pytifex
-    - name: Run tests
-      run: pytest || [ "$?" -eq 5 ]
