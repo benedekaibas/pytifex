@@ -22,9 +22,4 @@ jobs:
       run: |
         pylint src/pytifex
     - name: Run tests
-      run: |
-        set +e
-        pytest
-        exit_code=$?
-        if [ $exit_code -eq 5 ]; then exit 0; fi
-        exit $exit_code
+      run: pytest || [ "$?" -eq 5 ]
