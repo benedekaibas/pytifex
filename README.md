@@ -71,6 +71,19 @@ uv run pytifex --model gemini-2.5-pro
 uv run pytifex --no-github
 ```
 
+As a new feature (released in v1.6.0) you can also use your COHERE API with Pytifex!
+
+```
+export COHERE_API_KEY="your-key"   # or CO_API_KEY
+uv run pytifex --model command-a-03-2025
+
+# COHERE Models
+- command-a-03-2025
+- command-r-plus-08-2024
+- command-r-08-2024
+- command-r7b-12-2024
+```
+
 ### Commands
 
 | Command | Description |
