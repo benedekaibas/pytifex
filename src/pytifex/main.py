@@ -57,8 +57,19 @@ Options:
     parser.add_argument(
         "--model",
         default="gemini-2.5-flash",
-        choices=["gemini-2.5-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"],
-        help="Gemini model to use (default: gemini-2.5-flash)",
+        choices=[
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "command-a-03-2025",
+            "command-r-plus-08-2024",
+            "command-r-08-2024",
+            "command-r7b-12-2024",
+        ],
+        help=(
+            "LLM model to use (default: gemini-2.5-flash). Gemini models require "
+            "GEMINI_API_KEY; Cohere 'command*' models require COHERE_API_KEY (or CO_API_KEY)."
+        ),
     )
     parser.add_argument(
         "--num-examples",

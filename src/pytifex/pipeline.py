@@ -13,7 +13,7 @@ from typing import Optional
 
 from pydantic import HttpUrl
 
-from .agent import GetAccessToGemini
+from .agent import GetAccessToGemini, GetAccessToCohere, provider_for_model, get_api_token, Agent
 from .config import BASE_GEN_DIR, CHECKERS
 from .prompts import build_seed_based_prompt, build_expert_prompt, build_refinement_prompt
 from .github_issues import fetch_random_examples, IssueExample
@@ -141,16 +141,24 @@ def generate_with_filtering(
     Returns:
         Tuple of (list of examples with disagreements, output directory path)
     """
-    token = os.environ.get("GEMINI_API_KEY")
-    if not token:
-        raise ValueError("Please set GEMINI_API_KEY environment variable")
+    if provider_for_model(model) == "cohere":
+        agent = GetAccessToCohere(
+            model=model,
+            token=get_api_token("cohere"),
+            api_base=HttpUrl("https://api.cohere.com/v2"),
+            timeout=320.0,
+        )
+    else:
+        token = os.environ.get("GEMINI_API_KEY")
+        if not token:
+            raise ValueError("Please set GEMINI_API_KEY environment variable")
 
-    agent = GetAccessToGemini(
-        model=model,
-        token=token,
-        api_base=HttpUrl("https://generativelanguage.googleapis.com/v1beta"),
-        timeout=320.0,
-    )
+        agent = GetAccessToGemini(
+            model=model,
+            token=token,
+            api_base=HttpUrl("https://generativelanguage.googleapis.com/v1beta"),
+            timeout=320.0,
+        )
 
     collected: list[Example] = []
     all_generated: list[Example] = []
@@ -248,7 +256,7 @@ def generate_with_filtering(
 
 
 def refine_example(
-    agent: GetAccessToGemini,
+    agent: Agent,
     example: Example,
     max_attempts: int,
     verbose: bool = False,
