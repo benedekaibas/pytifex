@@ -121,30 +121,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#design-philosophy" id="toc-design-philosophy" class="nav-link" data-scroll-target="#design-philosophy">Design Philosophy</a></li>
   <li><a href="#evaluation-tiers" id="toc-evaluation-tiers" class="nav-link" data-scroll-target="#evaluation-tiers">Evaluation Tiers</a></li>
-  <li><a href="#phase-0-oracle-oracle.py" id="toc-phase-0-oracle-oracle.py" class="nav-link" data-scroll-target="#phase-0-oracle-oracle.py">Phase 0 — Oracle (<code>oracle.py</code>)</a>
-  <ul class="collapse">
-  <li><a href="#how-it-works" id="toc-how-it-works" class="nav-link" data-scroll-target="#how-it-works">How It Works</a></li>
-  <li><a href="#supported-rule-categories" id="toc-supported-rule-categories" class="nav-link" data-scroll-target="#supported-rule-categories">Supported Rule Categories</a></li>
-  </ul></li>
-  <li><a href="#phase-1-runtime-crash-detection" id="toc-phase-1-runtime-crash-detection" class="nav-link" data-scroll-target="#phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</a>
+  <li><a href="#tier-1-runtime-crash-detection" id="toc-tier-1-runtime-crash-detection" class="nav-link" data-scroll-target="#tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</a>
   <ul class="collapse">
   <li><a href="#full-traceback-walking" id="toc-full-traceback-walking" class="nav-link" data-scroll-target="#full-traceback-walking">Full Traceback Walking</a></li>
   <li><a href="#isolating-swallowed-errors" id="toc-isolating-swallowed-errors" class="nav-link" data-scroll-target="#isolating-swallowed-errors">Isolating Swallowed Errors</a></li>
+  </ul></li>
+  <li><a href="#tier-2-hypothesis-property-based-testing" id="toc-tier-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</a>
+  <ul class="collapse">
+  <li><a href="#how-it-works" id="toc-how-it-works" class="nav-link" data-scroll-target="#how-it-works">How It Works</a></li>
+  <li><a href="#tier-2a-false-negative-detection" id="toc-tier-2a-false-negative-detection" class="nav-link" data-scroll-target="#tier-2a-false-negative-detection">Tier 2a — False Negative Detection</a></li>
+  <li><a href="#tier-2b-false-positive-detection-success-witnesses" id="toc-tier-2b-false-positive-detection-success-witnesses" class="nav-link" data-scroll-target="#tier-2b-false-positive-detection-success-witnesses">Tier 2b — False Positive Detection (Success Witnesses)</a></li>
   <li><a href="#verdict-logic" id="toc-verdict-logic" class="nav-link" data-scroll-target="#verdict-logic">Verdict Logic</a></li>
   </ul></li>
-  <li><a href="#phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" id="toc-phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="nav-link" data-scroll-target="#phase-2-hypothesis-property-based-testing-hypothesis_tier2.py">Phase 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</a>
-  <ul class="collapse">
-  <li><a href="#how-it-works-1" id="toc-how-it-works-1" class="nav-link" data-scroll-target="#how-it-works-1">How It Works</a></li>
-  <li><a href="#targeted-tests" id="toc-targeted-tests" class="nav-link" data-scroll-target="#targeted-tests">Targeted Tests</a></li>
-  </ul></li>
-  <li><a href="#phase-3-pep-specification-compliance" id="toc-phase-3-pep-specification-compliance" class="nav-link" data-scroll-target="#phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</a>
-  <ul class="collapse">
-  <li><a href="#example-rules" id="toc-example-rules" class="nav-link" data-scroll-target="#example-rules">Example Rules</a></li>
-  <li><a href="#noise-filtering" id="toc-noise-filtering" class="nav-link" data-scroll-target="#noise-filtering">Noise Filtering</a></li>
-  <li><a href="#covered-peps" id="toc-covered-peps" class="nav-link" data-scroll-target="#covered-peps">Covered PEPs</a></li>
-  </ul></li>
-  <li><a href="#phase-4-static-flow-analysis-static_tier4.py" id="toc-phase-4-static-flow-analysis-static_tier4.py" class="nav-link" data-scroll-target="#phase-4-static-flow-analysis-static_tier4.py">Phase 4 — Static Flow Analysis (<code>static_tier4.py</code>)</a></li>
-  <li><a href="#agent-resolution" id="toc-agent-resolution" class="nav-link" data-scroll-target="#agent-resolution">Agent Resolution</a></li>
   <li><a href="#running-evaluation" id="toc-running-evaluation" class="nav-link" data-scroll-target="#running-evaluation">Running Evaluation</a>
   <ul class="collapse">
   <li><a href="#evaluation-output" id="toc-evaluation-output" class="nav-link" data-scroll-target="#evaluation-output">Evaluation Output</a></li>
@@ -162,179 +150,74 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="evaluation-system" class="level1">
 <h1>Evaluation System</h1>
-<p>Once Pytifex finds a disagreement — code where type checkers produce different verdicts — it needs to determine <strong>which checker is right</strong>. This page explains the multi-tiered evaluation system that establishes ground truth.</p>
+<p>Once Pytifex finds a disagreement — code where type checkers produce different verdicts — it needs to determine <strong>which checker is right</strong>. This page explains the two-tier objective evaluation system that establishes ground truth.</p>
 <hr>
 <section id="design-philosophy" class="level2">
 <h2 class="anchored" data-anchor-id="design-philosophy">Design Philosophy</h2>
-<p>The key insight: <strong>runtime behavior is the ultimate ground truth.</strong> If code raises <code>TypeError</code> at runtime, any type checker that reported “OK” is definitively wrong. The evaluation system prioritizes runtime evidence over static analysis and falls back to PEP specification matching only when runtime testing is inconclusive.</p>
-<p>All tiers always run and contribute evidence. The final verdict is determined by combining findings from all tiers, weighted by confidence.</p>
+<p>The evaluation system is built on a single principle: <strong>only runtime evidence counts.</strong></p>
+<p>This gives each tier a precise, objective role:</p>
+<ul>
+<li><strong>Tier 1</strong> proves <em>false negatives</em> — a runtime crash is a concrete witness that a type error exists. Any checker that said “OK” is definitively wrong.</li>
+<li><strong>Tier 2</strong> proves <em>false negatives and false positives</em> — Hypothesis generates type-conformant inputs (verified at the call boundary by <a href="https://beartype.readthedocs.io/">beartype</a>) and runs the code. A crash proves a false negative; successful execution proves a false positive.</li>
+</ul>
+<p>There are no heuristics, PEP pattern matching, or LLM judgements in the verdict path. A verdict is only issued when there is concrete runtime proof.</p>
 <hr>
 </section>
 <section id="evaluation-tiers" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation-tiers">Evaluation Tiers</h2>
 <pre class="text"><code>┌──────────────────────────────────────────────────────────────┐
-│  Phase 0: Oracle — AST-based PEP violation detection         │
-│  Confidence: 0.85–0.95                                       │
+│  Tier 1: Runtime Crash Detection                             │
+│  Evidence: code crashes with a TypeError/AttributeError      │
+│  Proves: false negatives (checker said "ok", code is broken) │
+│  Confidence: 0.95                                            │
 ├──────────────────────────────────────────────────────────────┤
-│  Phase 1: Runtime Crash Detection                            │
-│  Confidence: 0.95–1.0                                        │
-├──────────────────────────────────────────────────────────────┤
-│  Phase 2: Hypothesis Property-Based Testing                  │
+│  Tier 2a: Hypothesis Crashes                                 │
+│  Evidence: crash found with beartype-verified typed inputs   │
+│  Proves: false negatives (via fuzzing)                       │
 │  Confidence: 0.85                                            │
 ├──────────────────────────────────────────────────────────────┤
-│  Phase 3: PEP Specification Compliance                       │
-│  Confidence: 0.80–0.85                                       │
+│  Tier 2b: Success Witnesses                                  │
+│  Evidence: code ran correctly with beartype-verified inputs  │
+│  Proves: false positives (checker said "error", code is fine)│
+│  Confidence: 0.90                                            │
 ├──────────────────────────────────────────────────────────────┤
-│  Phsae 4: Static Flow Analysis                               │
-│  Confidence: 0.80                                            │
-├──────────────────────────────────────────────────────────────┤
-│  Agent Resolution: LLM-based verdict for UNCERTAIN cases     │
-│  Confidence: 0.70                                            │
+│  UNCERTAIN: no runtime evidence either way                   │
 └──────────────────────────────────────────────────────────────┘</code></pre>
 <hr>
 </section>
-<section id="phase-0-oracle-oracle.py" class="level2">
-<h2 class="anchored" data-anchor-id="phase-0-oracle-oracle.py">Phase 0 — Oracle (<code>oracle.py</code>)</h2>
-<p>The oracle performs <strong>AST-based source analysis</strong> to find violations that MUST exist according to PEP specifications, independent of any checker output.</p>
-<section id="how-it-works" class="level3">
-<h3 class="anchored" data-anchor-id="how-it-works">How It Works</h3>
-<ol type="1">
-<li><p><strong><code>source_analysis.py</code></strong> parses the source code and emits <code>SourceFinding</code> objects — e.g., “line 12 assigns <code>int</code> to a variable annotated <code>str</code>, violating PEP 484”:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SourceFinding:</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    line: <span class="bu">int</span></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    rule_id: <span class="bu">str</span>        <span class="co"># e.g., "ASSIGN001"</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    pep: <span class="bu">int</span>            <span class="co"># e.g., 484</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    message: <span class="bu">str</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    confidence: <span class="bu">float</span>   <span class="co"># only findings ≥ 0.85 are used</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong><code>oracle.py</code></strong> converts these into <code>OracleFinding</code> objects with a category (e.g., <code>INCOMPATIBLE_ASSIGNMENT</code>) and then matches them against each checker’s diagnostics.</p></li>
-<li><p><strong>Matching</strong> uses two criteria:</p>
-<ul>
-<li><strong>Line tolerance ±5</strong> — the checker’s error must be within 5 lines of the oracle’s finding</li>
-<li><strong>Error code matching</strong> — the checker’s error code must be in the known set for that category</li>
-</ul>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-category error codes for each checker</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>CHECKER_ERROR_CODES <span class="op">=</span> {</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"INCOMPATIBLE_ASSIGNMENT"</span>: {</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"mypy"</span>: [<span class="st">"assignment"</span>, <span class="st">"arg-type"</span>, <span class="st">"misc"</span>],</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"pyrefly"</span>: [<span class="st">"bad-assignment"</span>],</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ty"</span>: [<span class="st">"invalid-assignment"</span>],</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"zuban"</span>: [<span class="st">"assignment"</span>, <span class="st">"arg-type"</span>, <span class="st">"misc"</span>],</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    },</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ... 30+ categories</span></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Verdicts</strong>: If all oracle findings are matched → <code>CORRECT</code>. If any are missed → <code>INCORRECT</code>. If upstream checker errors blocked detection → <code>UNCERTAIN</code>.</p></li>
-</ol>
-</section>
-<section id="supported-rule-categories" class="level3">
-<h3 class="anchored" data-anchor-id="supported-rule-categories">Supported Rule Categories</h3>
-<p>The oracle covers 30+ rule categories including:</p>
-<table class="caption-top table">
-<thead>
-<tr class="header">
-<th>Category</th>
-<th>Example rule IDs</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Method override incompatibility</td>
-<td><code>LSP001</code>, <code>LSP002</code></td>
-</tr>
-<tr class="even">
-<td>Final reassignment / subclassing</td>
-<td><code>FINAL001</code>–<code>FINAL004</code></td>
-</tr>
-<tr class="odd">
-<td>Protocol instantiation / conformance</td>
-<td><code>PROTO001</code>–<code>PROTO003</code></td>
-</tr>
-<tr class="even">
-<td>TypedDict field violations</td>
-<td><code>TDICT001</code>–<code>TDICT004</code></td>
-</tr>
-<tr class="odd">
-<td>ParamSpec / Concatenate misuse</td>
-<td><code>PARAMSPEC001</code>–<code>PARAMSPEC004</code></td>
-</tr>
-<tr class="even">
-<td>TypeGuard / TypeIs misuse</td>
-<td><code>TYPEGUARD001</code>, <code>TYPEIS001</code></td>
-</tr>
-<tr class="odd">
-<td>Variance violations</td>
-<td><code>VARIANCE001</code>, <code>VARIANCE002</code></td>
-</tr>
-</tbody>
-</table>
-<hr>
-</section>
-</section>
-<section id="phase-1-runtime-crash-detection" class="level2">
-<h2 class="anchored" data-anchor-id="phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</h2>
-<p>Executes the generated code and catches type-related runtime exceptions:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>TYPE_ERROR_EXCEPTIONS <span class="op">=</span> (<span class="pp">TypeError</span>, <span class="pp">KeyError</span>, <span class="pp">AttributeError</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="tier-1-runtime-crash-detection" class="level2">
+<h2 class="anchored" data-anchor-id="tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</h2>
+<p>Executes the generated code directly and catches type-related runtime exceptions:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>TYPE_ERROR_EXCEPTIONS <span class="op">=</span> (<span class="pp">TypeError</span>, <span class="pp">KeyError</span>, <span class="pp">AttributeError</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If the code crashes, any checker that reported “OK” has a proven <strong>false negative</strong>. If the code ran fine, Tier 1 produces no verdict — the result falls through to Tier 2.</p>
 <section id="full-traceback-walking" class="level3">
 <h3 class="anchored" data-anchor-id="full-traceback-walking">Full Traceback Walking</h3>
-<p>Phase 1 doesn’t just catch the top-level exception — it walks the <strong>entire traceback</strong> and inspects <strong>exception chains</strong> (<code>__cause__</code> / <code>__context__</code>):</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _collect_chained_exceptions(exc):</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    chain <span class="op">=</span> []</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> exc</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> current <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        chain.append(current)</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        current <span class="op">=</span> current.__cause__ <span class="kw">or</span> current.__context__</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    chain.reverse()  <span class="co"># root-cause first</span></span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Tier 1 doesn’t just catch the top-level exception — it walks the <strong>entire traceback</strong> and inspects <strong>exception chains</strong> (<code>__cause__</code> / <code>__context__</code>):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _collect_chained_exceptions(exc):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    chain <span class="op">=</span> []</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> exc</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> current <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        chain.append(current)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        current <span class="op">=</span> current.__cause__ <span class="kw">or</span> current.__context__</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    chain.reverse()  <span class="co"># root-cause first</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="isolating-swallowed-errors" class="level3">
 <h3 class="anchored" data-anchor-id="isolating-swallowed-errors">Isolating Swallowed Errors</h3>
-<p>Code often contains <code>try</code>/<code>except</code> blocks that catch and hide type errors. Phase 1 uses AST analysis to find <code>try</code> bodies and re-executes them in isolation:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>try_bodies <span class="op">=</span> _extract_try_bodies(source_code)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> start_line, end_line, body_source <span class="kw">in</span> try_bodies:</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    isolated_bugs <span class="op">=</span> _run_isolated_code(body_source)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Bugs found here were swallowed by the original try/except</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="verdict-logic" class="level3">
-<h3 class="anchored" data-anchor-id="verdict-logic">Verdict Logic</h3>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 27%">
-<col style="width: 34%">
-<col style="width: 38%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Runtime result</th>
-<th>Checker said “ok”</th>
-<th>Checker said “error”</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Code crashes (TypeError, etc.)</td>
-<td><strong>INCORRECT</strong> (false negative)</td>
-<td><strong>CORRECT</strong></td>
-</tr>
-<tr class="even">
-<td>Code runs fine</td>
-<td>UNCERTAIN</td>
-<td>UNCERTAIN (possible false positive)</td>
-</tr>
-</tbody>
-</table>
+<p>Code often contains <code>try</code>/<code>except</code> blocks that catch and hide type errors. Tier 1 uses AST analysis to find <code>try</code> bodies and re-executes them in isolation to surface errors that would otherwise be swallowed.</p>
 <hr>
 </section>
 </section>
-<section id="phase-2-hypothesis-property-based-testing-hypothesis_tier2.py" class="level2">
-<h2 class="anchored" data-anchor-id="phase-2-hypothesis-property-based-testing-hypothesis_tier2.py">Phase 2 — Hypothesis Property-Based Testing (<code>hypothesis_tier2.py</code>)</h2>
-<p>Uses <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> to generate random inputs matching declared type annotations and run them through the actual code.</p>
-<section id="how-it-works-1" class="level3">
-<h3 class="anchored" data-anchor-id="how-it-works-1">How It Works</h3>
+<section id="tier-2-hypothesis-property-based-testing" class="level2">
+<h2 class="anchored" data-anchor-id="tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</h2>
+<p>Uses <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> to generate random inputs that match the declared type annotations, then calls the actual code with those inputs. Both false negatives and false positives can be proven at this tier.</p>
+<section id="how-it-works" class="level3">
+<h3 class="anchored" data-anchor-id="how-it-works">How It Works</h3>
 <ol type="1">
-<li><p><strong>Extract function signatures</strong> — Parse the AST to find all user-defined functions and methods.</p></li>
-<li><p><strong>Build a live namespace</strong> — Execute the source with <code>__name__ != "__main__"</code> to get real callable objects.</p></li>
-<li><p><strong>Introspect signatures</strong> — Use <code>inspect.signature()</code> and <code>typing.get_type_hints()</code> to resolve parameter types.</p></li>
-<li><p><strong>Build Hypothesis strategies</strong> — Map type hints to <code>hypothesis.strategies</code>:</p>
+<li><strong>Extract function signatures</strong> — Parse the AST to find all user-defined functions and methods.</li>
+<li><strong>Build a live namespace</strong> — Execute the source with <code>__name__ != "__main__"</code> to get real callable objects.</li>
+<li><strong>Introspect signatures</strong> — Use <code>inspect.signature()</code> and <code>typing.get_type_hints()</code> to resolve parameter types.</li>
+<li><strong>Build Hypothesis strategies</strong> — Map type hints to <code>hypothesis.strategies</code>:
 <ul>
 <li><code>int</code> → <code>st.integers()</code></li>
 <li><code>str</code> → <code>st.text()</code></li>
@@ -342,147 +225,104 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>Optional[str]</code> → <code>st.none() | st.text()</code></li>
 <li>Custom classes → <code>st.builds(ClassName, ...)</code></li>
 </ul></li>
-<li><p><strong>Run <code>@given</code> tests</strong> — Call the function with generated inputs. Any <code>TypeError</code>, <code>KeyError</code>, or <code>AttributeError</code> is a confirmed type bug.</p></li>
+<li><strong>Enforce input conformance with beartype</strong> — Before calling the function, it is wrapped with <code>@beartype</code>. If a generated input turns out not to conform to the declared type (rare with well-built strategies, but possible for complex types), beartype raises <code>BeartypeCallHintParamViolation</code> and that call is skipped rather than counted.</li>
+<li><strong>Run <code>@given</code> tests</strong> — Call the function with confirmed type-conformant inputs and observe the outcome.</li>
 </ol>
 </section>
-<section id="targeted-tests" class="level3">
-<h3 class="anchored" data-anchor-id="targeted-tests">Targeted Tests</h3>
-<p>In addition to Hypothesis fuzzing, <code>targeted_tests.py</code> generates specific test cases for known patterns (e.g., calling a protocol method with wrong argument types).</p>
-<hr>
+<section id="tier-2a-false-negative-detection" class="level3">
+<h3 class="anchored" data-anchor-id="tier-2a-false-negative-detection">Tier 2a — False Negative Detection</h3>
+<p>If any call raises a <code>TypeError</code>, <code>KeyError</code>, or <code>AttributeError</code>, that is a confirmed type bug. A checker that said “OK” on this code has a proven false negative.</p>
 </section>
+<section id="tier-2b-false-positive-detection-success-witnesses" class="level3">
+<h3 class="anchored" data-anchor-id="tier-2b-false-positive-detection-success-witnesses">Tier 2b — False Positive Detection (Success Witnesses)</h3>
+<p>If calls succeed — beartype confirmed the inputs were type-conformant, execution completed without error, and the return value passed a <code>typeguard.check_type()</code> validation — those calls are recorded as <strong>success witnesses</strong>.</p>
+<p>A success witness is a concrete proof that the code is well-typed for at least one real execution. Any checker that reported “error” on this code has a proven <strong>false positive</strong>.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SuccessWitness:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    call_text: <span class="bu">str</span>          <span class="co"># e.g. "multiply(...)"</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    calls_succeeded: <span class="bu">int</span>    <span class="co"># number of successful Hypothesis calls</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    beartype_enforced: <span class="bu">bool</span> <span class="co"># True when beartype confirmed input conformance</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="phase-3-pep-specification-compliance" class="level2">
-<h2 class="anchored" data-anchor-id="phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</h2>
-<p>Matches a curated list of <code>PEP_RULES</code> against each checker’s output. Each rule is a regex pattern paired with the expected behavior:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PEPRule:</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    pep_number: <span class="bu">int</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    pattern: <span class="bu">str</span>           <span class="co"># regex to match in checker output</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    rule_description: <span class="bu">str</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    correct_behavior: <span class="bu">str</span>  <span class="co"># "error" or "ok"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<section id="example-rules" class="level3">
-<h3 class="anchored" data-anchor-id="example-rules">Example Rules</h3>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>PEPRule(</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    pep_number<span class="op">=</span><span class="dv">484</span>,</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    pattern<span class="op">=</span><span class="vs">r"NewType</span><span class="dv">.</span><span class="op">*</span><span class="vs">float"</span>,</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    rule_description<span class="op">=</span><span class="st">"float is a valid base for NewType (PEP 484)"</span>,</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    correct_behavior<span class="op">=</span><span class="st">"ok"</span>,</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>PEPRule(</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    pep_number<span class="op">=</span><span class="dv">591</span>,</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    pattern<span class="op">=</span><span class="vs">r"</span><span class="pp">[Cc]</span><span class="vs">annot </span>(?:<span class="vs">assign</span><span class="cf">|</span><span class="vs">override</span>)<span class="dv">.</span><span class="op">*</span><span class="vs">Final"</span>,</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    rule_description<span class="op">=</span><span class="st">"Final variables cannot be reassigned (PEP 591)"</span>,</span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    correct_behavior<span class="op">=</span><span class="st">"error"</span>,</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="noise-filtering" class="level3">
-<h3 class="anchored" data-anchor-id="noise-filtering">Noise Filtering</h3>
-<p>Pyitex skips lines that are notes, info messages, or import-related errors:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> text_line <span class="kw">in</span> output.splitlines():</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    lower <span class="op">=</span> text_line.lower()</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"note:"</span> <span class="kw">in</span> lower <span class="kw">or</span> <span class="st">"info["</span> <span class="kw">in</span> lower:</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span>  <span class="co"># skip noise</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> MODULE_IMPORT_RE.search(text_line):</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span>  <span class="co"># skip import errors</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> re.search(rule.pattern, text_line, re.IGNORECASE):</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        matched <span class="op">=</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="covered-peps" class="level3">
-<h3 class="anchored" data-anchor-id="covered-peps">Covered PEPs</h3>
-<p>484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673, 675, 681, 692, 695, 696, 698, 705, 742</p>
-<hr>
-</section>
-</section>
-<section id="phase-4-static-flow-analysis-static_tier4.py" class="level2">
-<h2 class="anchored" data-anchor-id="phase-4-static-flow-analysis-static_tier4.py">Phase 4 — Static Flow Analysis (<code>static_tier4.py</code>)</h2>
-<p>A collection of lightweight AST-based checks that run when earlier tiers didn’t resolve the verdict:</p>
+<section id="verdict-logic" class="level3">
+<h3 class="anchored" data-anchor-id="verdict-logic">Verdict Logic</h3>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Analysis</th>
-<th>What it checks</th>
+<th>Tier 1 result</th>
+<th>Tier 2 result</th>
+<th>Checker said “ok”</th>
+<th>Checker said “error”</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>Import availability</strong></td>
-<td>Whether imported typing features exist in the claimed module/Python version</td>
+<td>crash</td>
+<td>—</td>
+<td><strong>INCORRECT</strong> (false negative)</td>
+<td>CORRECT</td>
 </tr>
 <tr class="even">
-<td><strong>Variance constraints</strong></td>
-<td>Covariant TypeVar used in contravariant position, etc.</td>
+<td>no crash</td>
+<td>Hypothesis crash</td>
+<td><strong>INCORRECT</strong> (false negative)</td>
+<td>CORRECT</td>
 </tr>
 <tr class="odd">
-<td><strong>Type narrowing flow</strong></td>
-<td>Whether <code>isinstance</code>, <code>TypeIs</code>, <code>TypeGuard</code> narrowing is correctly applied</td>
+<td>no crash</td>
+<td>success witnesses</td>
+<td>CORRECT</td>
+<td><strong>INCORRECT</strong> (false positive)</td>
 </tr>
 <tr class="even">
-<td><strong>Nominal type boundaries</strong></td>
-<td><code>NewType</code> and <code>TypeAliasType</code> nominal vs.&nbsp;structural behavior</td>
-</tr>
-<tr class="odd">
-<td><strong>Match exhaustiveness</strong></td>
-<td>Whether <code>match</code>/<code>case</code> covers all variants (unreachable <code>case _</code>)</td>
-</tr>
-<tr class="even">
-<td><strong>Lambda inference</strong></td>
-<td>Complex inference limitations with lambdas</td>
+<td>no crash</td>
+<td>no witnesses</td>
+<td>UNCERTAIN</td>
+<td>UNCERTAIN</td>
 </tr>
 </tbody>
 </table>
 <hr>
 </section>
-<section id="agent-resolution" class="level2">
-<h2 class="anchored" data-anchor-id="agent-resolution">Agent Resolution</h2>
-<p>Any verdict still <code>UNCERTAIN</code> after all phase is forwarded to a Gemini API call for LLM-based resolution:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="ss">f"""</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ss">Source code: </span><span class="sc">{</span>source_code<span class="sc">}</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ss">Checker: </span><span class="sc">{</span>checker_name<span class="sc">}</span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ss">Checker output: </span><span class="sc">{</span>checker_output<span class="sc">}</span></span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ss">Other checkers' outputs: </span><span class="sc">{</span>other_outputs<span class="sc">}</span></span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="ss">Determine whether this type checker's behavior is CORRECT, INCORRECT, or UNCERTAIN.</span></span>
-<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ss">Cite the specific PEP section that supports your verdict.</span></span>
-<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="ss">"""</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The response is parsed as JSON with <code>verdict</code>, <code>reason</code>, <code>pep_citation</code>, and <code>confidence</code> fields.</p>
-<hr>
 </section>
 <section id="running-evaluation" class="level2">
 <h2 class="anchored" data-anchor-id="running-evaluation">Running Evaluation</h2>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run full pipeline (generation + evaluation)</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate existing results only</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py eval</span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Use legacy LLM-based evaluation instead</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run main.py <span class="at">--eval-method</span> all</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run full pipeline (generation + evaluation)</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate existing results only</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex eval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="evaluation-output" class="level3">
 <h3 class="anchored" data-anchor-id="evaluation-output">Evaluation Output</h3>
 <p>Results are saved to <code>evaluation_comprehensive.json</code>:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"method"</span><span class="fu">:</span> <span class="st">"comprehensive_tiered"</span><span class="fu">,</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"tier_distribution"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"0"</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span> <span class="dt">"1"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">"2"</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span> <span class="dt">"3"</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span> <span class="dt">"4"</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">},</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"summary"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mypy"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"correct"</span><span class="fu">:</span> <span class="dv">8</span><span class="fu">,</span> <span class="dt">"incorrect"</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span> <span class="dt">"uncertain"</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">},</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"pyrefly"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"correct"</span><span class="fu">:</span> <span class="dv">6</span><span class="fu">,</span> <span class="dt">"incorrect"</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span> <span class="dt">"uncertain"</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">}</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"evaluations"</span><span class="fu">:</span> <span class="ot">[</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"filename"</span><span class="fu">:</span> <span class="st">"protocol-defaults-1.py"</span><span class="fu">,</span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"tier_reached"</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"checker_verdicts"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">"mypy"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"verdict"</span><span class="fu">:</span> <span class="st">"INCORRECT"</span><span class="fu">,</span> <span class="dt">"tier"</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span> <span class="dt">"confidence"</span><span class="fu">:</span> <span class="fl">1.0</span><span class="fu">},</span></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">"pyrefly"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"verdict"</span><span class="fu">:</span> <span class="st">"CORRECT"</span><span class="fu">,</span> <span class="dt">"tier"</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span> <span class="dt">"confidence"</span><span class="fu">:</span> <span class="fl">1.0</span><span class="fu">}</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"method"</span><span class="fu">:</span> <span class="st">"two_tier_objective"</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"summary"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"mypy"</span><span class="fu">:</span>    <span class="fu">{</span><span class="dt">"correct"</span><span class="fu">:</span> <span class="dv">8</span><span class="fu">,</span> <span class="dt">"incorrect"</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span> <span class="dt">"uncertain"</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">},</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"pyrefly"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"correct"</span><span class="fu">:</span> <span class="dv">6</span><span class="fu">,</span> <span class="dt">"incorrect"</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span> <span class="dt">"uncertain"</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">}</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"results"</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"filename"</span><span class="fu">:</span> <span class="st">"protocol-defaults-1.py"</span><span class="fu">,</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"tier1_bugs"</span><span class="fu">:</span> <span class="ot">[]</span><span class="fu">,</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"tier2_bugs"</span><span class="fu">:</span> <span class="ot">[]</span><span class="fu">,</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"tier2_witnesses"</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        <span class="fu">{</span><span class="dt">"call"</span><span class="fu">:</span> <span class="st">"render(...)"</span><span class="fu">,</span> <span class="dt">"successes"</span><span class="fu">:</span> <span class="dv">30</span><span class="fu">,</span> <span class="dt">"beartype_enforced"</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">}</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"verdicts"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        <span class="dt">"mypy"</span><span class="fu">:</span>    <span class="fu">{</span><span class="dt">"verdict"</span><span class="fu">:</span> <span class="st">"INCORRECT"</span><span class="fu">,</span> <span class="dt">"tier"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">"confidence"</span><span class="fu">:</span> <span class="fl">0.9</span><span class="fu">,</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>                   <span class="dt">"reason"</span><span class="fu">:</span> <span class="st">"False positive: reported error on code that executed successfully with type-conformant inputs (30 successful call(s), beartype-enforced)"</span><span class="fu">},</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        <span class="dt">"pyrefly"</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">"verdict"</span><span class="fu">:</span> <span class="st">"CORRECT"</span><span class="fu">,</span>   <span class="dt">"tier"</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span> <span class="dt">"confidence"</span><span class="fu">:</span> <span class="fl">0.9</span><span class="fu">,</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>                   <span class="dt">"reason"</span><span class="fu">:</span> <span class="st">"Correctly accepted code that executed successfully with type-conformant inputs (30 successful call(s), beartype-enforced)"</span><span class="fu">}</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="verdict-meanings" class="level3">
 <h3 class="anchored" data-anchor-id="verdict-meanings">Verdict Meanings</h3>
@@ -508,7 +348,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>UNCERTAIN</code></td>
-<td>Not enough evidence to determine correctness</td>
+<td>No runtime evidence from either tier — neither crash nor successful witness found</td>
 </tr>
 </tbody>
 </table>

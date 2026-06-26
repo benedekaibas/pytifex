@@ -122,6 +122,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
   <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
   <li><a href="#environment-variables" id="toc-environment-variables" class="nav-link" data-scroll-target="#environment-variables">Environment Variables</a></li>
+  <li><a href="#llm-provider-setup" id="toc-llm-provider-setup" class="nav-link" data-scroll-target="#llm-provider-setup">LLM Provider Setup</a>
+  <ul class="collapse">
+  <li><a href="#google-gemini-default" id="toc-google-gemini-default" class="nav-link" data-scroll-target="#google-gemini-default">Google Gemini (default)</a></li>
+  <li><a href="#openai" id="toc-openai" class="nav-link" data-scroll-target="#openai">OpenAI</a></li>
+  <li><a href="#local-model-llama-server-ollama-vllm" id="toc-local-model-llama-server-ollama-vllm" class="nav-link" data-scroll-target="#local-model-llama-server-ollama-vllm">Local model (llama-server, Ollama, vLLM)</a></li>
+  <li><a href="#cohere" id="toc-cohere" class="nav-link" data-scroll-target="#cohere">Cohere</a></li>
+  </ul></li>
   </ul></li>
   </ul>
 </nav>
@@ -145,13 +152,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytifex</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Required</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Set an API key for your chosen LLM provider (see below)</span></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_gemini_api_key</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional — higher GitHub API rate limits</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_github_token</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Run Pytifex and generate tricky code examples that lead to disagreements between Type checkers</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Run Pytifex</span></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The type checkers (mypy, pyrefly, zuban, ty) are <strong>automatically installed</strong> by <code>uv</code> when you run the tool.</p>
 </section>
@@ -173,18 +180,57 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>GEMINI_API_KEY</code></td>
-<td><strong>Yes</strong></td>
-<td>Google Gemini API key for code generation</td>
+<td>For Gemini models</td>
+<td>Google Gemini API key</td>
+</tr>
+<tr class="even">
+<td><code>OPENAI_API_KEY</code></td>
+<td>For OpenAI API</td>
+<td>OpenAI API key (not needed for local servers)</td>
+</tr>
+<tr class="odd">
+<td><code>COHERE_API_KEY</code></td>
+<td>For Cohere models</td>
+<td>Cohere API key (also accepted as <code>CO_API_KEY</code>)</td>
 </tr>
 <tr class="even">
 <td><code>GITHUB_TOKEN</code></td>
 <td>No</td>
-<td>GitHub token for higher API rate limits</td>
+<td>GitHub token for higher API rate limits (60 → 5,000 req/hour)</td>
 </tr>
 </tbody>
 </table>
+<p>At least one LLM provider key is required unless you are using a local model server, in which case no key is needed.</p>
+</section>
+<section id="llm-provider-setup" class="level2">
+<h2 class="anchored" data-anchor-id="llm-provider-setup">LLM Provider Setup</h2>
+<section id="google-gemini-default" class="level3">
+<h3 class="anchored" data-anchor-id="google-gemini-default">Google Gemini (default)</h3>
+<p>Get a free API key at <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a>.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="openai" class="level3">
+<h3 class="anchored" data-anchor-id="openai">OpenAI</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="local-model-llama-server-ollama-vllm" class="level3">
+<h3 class="anchored" data-anchor-id="local-model-llama-server-ollama-vllm">Local model (llama-server, Ollama, vLLM)</h3>
+<p>No API key needed. Start your server, then point Pytifex at it:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: llama.cpp llama-server</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># llama-server -m qwen3-6b.gguf --port 8080</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Any server exposing a <code>/v1/chat/completions</code> endpoint is compatible.</p>
+</section>
+<section id="cohere" class="level3">
+<h3 class="anchored" data-anchor-id="cohere">Cohere</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 </section>
 

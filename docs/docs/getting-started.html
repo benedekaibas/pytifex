@@ -121,6 +121,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
   <li><a href="#quick-start" id="toc-quick-start" class="nav-link" data-scroll-target="#quick-start">Quick Start</a></li>
+  <li><a href="#choosing-an-llm-provider" id="toc-choosing-an-llm-provider" class="nav-link" data-scroll-target="#choosing-an-llm-provider">Choosing an LLM Provider</a>
+  <ul class="collapse">
+  <li><a href="#google-gemini-default" id="toc-google-gemini-default" class="nav-link" data-scroll-target="#google-gemini-default">Google Gemini (default)</a></li>
+  <li><a href="#openai" id="toc-openai" class="nav-link" data-scroll-target="#openai">OpenAI</a></li>
+  <li><a href="#local-model-llama-server-ollama-vllm" id="toc-local-model-llama-server-ollama-vllm" class="nav-link" data-scroll-target="#local-model-llama-server-ollama-vllm">Local Model (llama-server, Ollama, vLLM)</a></li>
+  <li><a href="#cohere" id="toc-cohere" class="nav-link" data-scroll-target="#cohere">Cohere</a></li>
+  </ul></li>
   <li><a href="#what-happens-when-you-run-it" id="toc-what-happens-when-you-run-it" class="nav-link" data-scroll-target="#what-happens-when-you-run-it">What Happens When You Run It</a></li>
   <li><a href="#optional-github-token" id="toc-optional-github-token" class="nav-link" data-scroll-target="#optional-github-token">Optional: GitHub Token</a></li>
   <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next Steps</a></li>
@@ -141,48 +148,75 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><strong>Python 3.12+</strong></li>
 <li><a href="https://docs.astral.sh/uv/"><strong>uv</strong></a> — the recommended package runner (handles all dependency installation automatically)</li>
-<li>A <strong>Google Gemini API key</strong> — <a href="https://aistudio.google.com/apikey">get one here</a></li>
+<li>An <strong>LLM API key</strong> — Gemini is the default, but OpenAI and local models are also supported (see below)</li>
 </ul>
 </section>
 <section id="quick-start" class="level2">
 <h2 class="anchored" data-anchor-id="quick-start">Quick Start</h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Install pytifex through PyPi (https://pypi.org/project/pytifex/)</span></span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Install pytifex</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytifex</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Set your API key</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Run the full pipeline</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--num-examples</span> 5</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">*or*</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Set your API key (choose one provider)</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key      <span class="co"># Google Gemini (default)</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># export OPENAI_API_KEY=your_key    # OpenAI</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># (no key needed for local models)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Run the full pipeline</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>That’s it. <code>uv</code> automatically installs all dependencies (including all four type checkers) on first run.</p>
+</section>
+<section id="choosing-an-llm-provider" class="level2">
+<h2 class="anchored" data-anchor-id="choosing-an-llm-provider">Choosing an LLM Provider</h2>
+<section id="google-gemini-default" class="level3">
+<h3 class="anchored" data-anchor-id="google-gemini-default">Google Gemini (default)</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex                             <span class="co"># uses gemini-2.5-flash by default</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-pro      <span class="co"># more capable model</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Get a Gemini API key at <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a>.</p>
+</section>
+<section id="openai" class="level3">
+<h3 class="anchored" data-anchor-id="openai">OpenAI</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="local-model-llama-server-ollama-vllm" class="level3">
+<h3 class="anchored" data-anchor-id="local-model-llama-server-ollama-vllm">Local Model (llama-server, Ollama, vLLM)</h3>
+<p>Any server that exposes an OpenAI-compatible <code>/v1/chat/completions</code> endpoint works. No API key is needed for local servers.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Start your local server first (example: llama.cpp llama-server)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># llama-server -m qwen3-6b.gguf --port 8080</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="cohere" class="level3">
+<h3 class="anchored" data-anchor-id="cohere">Cohere</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 </section>
 <section id="what-happens-when-you-run-it" class="level2">
 <h2 class="anchored" data-anchor-id="what-happens-when-you-run-it">What Happens When You Run It</h2>
 <ol type="1">
 <li><strong>Seed mining</strong> — Pytifex fetches closed bug reports from mypy, pyrefly, and ty GitHub repositories</li>
-<li><strong>Code generation</strong> — Seeds are sent to Gemini, which generates new code variations targeting similar edge cases</li>
+<li><strong>Code generation</strong> — Seeds are sent to the LLM, which generates new code variations targeting similar edge cases</li>
 <li><strong>Type checking</strong> — Each generated example is run through mypy, pyrefly, zuban, and ty</li>
 <li><strong>Filtering</strong> — Only examples where checkers <em>disagree</em> are kept</li>
-<li><strong>Evaluation</strong> — A multi-tiered system determines which checker is correct</li>
+<li><strong>Evaluation</strong> — A two-tier objective system determines which checker is correct using runtime evidence only</li>
 </ol>
 <p>Output is saved to <code>generated_examples/&lt;timestamp&gt;/</code>.</p>
 </section>
 <section id="optional-github-token" class="level2">
 <h2 class="anchored" data-anchor-id="optional-github-token">Optional: GitHub Token</h2>
 <p>Without a token, GitHub API requests are limited to 60/hour. For heavier usage:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_token    <span class="co"># raises limit to 5,000/hour</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_token    <span class="co"># raises limit to 5,000/hour</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or skip GitHub entirely:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--no-github</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--no-github</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="next-steps" class="level2">
 <h2 class="anchored" data-anchor-id="next-steps">Next Steps</h2>
 <ul>
 <li><strong><a href="./installation.html">Installation</a></strong> — Detailed setup including manual installation</li>
 <li><strong><a href="./usage.html">Usage</a></strong> — Full CLI reference, commands, and options</li>
+<li><strong><a href="./evaluation.html">Evaluation</a></strong> — Understand how the two-tier objective evaluation works</li>
 <li><strong><a href="./architecture.html">Architecture</a></strong> — Understand how the pipeline works under the hood</li>
 </ul>
 

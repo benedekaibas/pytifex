@@ -121,6 +121,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#commands" id="toc-commands" class="nav-link" data-scroll-target="#commands">Commands</a></li>
   <li><a href="#options" id="toc-options" class="nav-link" data-scroll-target="#options">Options</a></li>
+  <li><a href="#llm-providers" id="toc-llm-providers" class="nav-link" data-scroll-target="#llm-providers">LLM Providers</a>
+  <ul class="collapse">
+  <li><a href="#google-gemini-default" id="toc-google-gemini-default" class="nav-link" data-scroll-target="#google-gemini-default">Google Gemini (default)</a></li>
+  <li><a href="#cohere" id="toc-cohere" class="nav-link" data-scroll-target="#cohere">Cohere</a></li>
+  <li><a href="#openai-compatible-api" id="toc-openai-compatible-api" class="nav-link" data-scroll-target="#openai-compatible-api">OpenAI-compatible API</a></li>
+  </ul></li>
   <li><a href="#example-output" id="toc-example-output" class="nav-link" data-scroll-target="#example-output">Example Output</a></li>
   <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
   </ul></li>
@@ -135,28 +141,30 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="usage" class="level1">
 <h1>Usage</h1>
-<p>Run from the <code>src/tc_disagreement</code> directory.</p>
+<p>Run from the project root directory.</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Full pipeline: mine → generate → filter → evaluate</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Target a specific number of disagreements</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--num-examples</span> 10</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a more capable model</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a more capable Gemini model</span></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-pro</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Skip GitHub seed fetching</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--no-github</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Use a local model via llama-server (OpenAI-compatible API)</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Verbose output</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">-v</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the real OpenAI API</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Skip GitHub seed fetching</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--no-github</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Verbose output</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">-v</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="commands" class="level2">
 <h2 class="anchored" data-anchor-id="commands">Commands</h2>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 40%">
-<col style="width: 59%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Command</th>
@@ -165,7 +173,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>uv run pytifex | Full pipeline (generate + evaluate) | |</code>uv run pytifex generate<code>| Generate disagreements only | |</code>uv run pytifex check<code>| Run type checkers on existing examples | |</code>uv run pytifex eval`</td>
+<td><code>uv run pytifex</code></td>
+<td>Full pipeline (generate + evaluate)</td>
+</tr>
+<tr class="even">
+<td><code>uv run pytifex generate</code></td>
+<td>Generate disagreements only</td>
+</tr>
+<tr class="odd">
+<td><code>uv run pytifex check</code></td>
+<td>Run type checkers on existing examples</td>
+</tr>
+<tr class="even">
+<td><code>uv run pytifex eval</code></td>
 <td>Evaluate existing results</td>
 </tr>
 </tbody>
@@ -174,11 +194,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="options" class="level2">
 <h2 class="anchored" data-anchor-id="options">Options</h2>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 26%">
-<col style="width: 30%">
-<col style="width: 43%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Option</th>
@@ -210,25 +225,63 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>--model MODEL</code></td>
 <td><code>gemini-2.5-flash</code></td>
-<td>Gemini model to use</td>
+<td>LLM model name (see <a href="#llm-providers">LLM Providers</a> below)</td>
 </tr>
 <tr class="even">
+<td><code>--openai-base-url URL</code></td>
+<td>—</td>
+<td>Base URL for an OpenAI-compatible API endpoint</td>
+</tr>
+<tr class="odd">
 <td><code>--eval-method METHOD</code></td>
 <td><code>comprehensive</code></td>
 <td>Evaluation method</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-github</code></td>
 <td>—</td>
 <td>Skip fetching seeds from GitHub issues</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>-v, --verbose</code></td>
 <td>—</td>
 <td>Show all examples, not just disagreements</td>
 </tr>
 </tbody>
 </table>
+</section>
+<section id="llm-providers" class="level2">
+<h2 class="anchored" data-anchor-id="llm-providers">LLM Providers</h2>
+<p>Pytifex supports three LLM providers. The provider is selected automatically based on <code>--model</code> and <code>--openai-base-url</code>.</p>
+<section id="google-gemini-default" class="level3">
+<h3 class="anchored" data-anchor-id="google-gemini-default">Google Gemini (default)</h3>
+<p>Requires <code>GEMINI_API_KEY</code>.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-flash    <span class="co"># default</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-pro</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gemini-2.5-flash-lite</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="cohere" class="level3">
+<h3 class="anchored" data-anchor-id="cohere">Cohere</h3>
+<p>Requires <code>COHERE_API_KEY</code> (or <code>CO_API_KEY</code>). Model names starting with <code>command</code> are automatically routed to Cohere.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> command-a-03-2025</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> command-r-plus-08-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="openai-compatible-api" class="level3">
+<h3 class="anchored" data-anchor-id="openai-compatible-api">OpenAI-compatible API</h3>
+<p>Activated by passing <code>--openai-base-url</code>. Works with the real OpenAI API, local models via <a href="https://github.com/ggml-org/llama.cpp">llama-server</a>, Ollama, vLLM, and any other server that implements the <code>/v1/chat/completions</code> endpoint.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Real OpenAI API</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Local model via llama-server (no API key needed)</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Ollama</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> llama3 <span class="at">--openai-base-url</span> http://localhost:11434/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>OPENAI_API_KEY</code> is read from the environment when set; for local servers that don’t require authentication it can be left unset.</p>
+</section>
 </section>
 <section id="example-output" class="level2">
 <h2 class="anchored" data-anchor-id="example-output">Example Output</h2>
@@ -239,11 +292,6 @@ PYTIFEX - Full Pipeline (with disagreement filtering)
 [STEP 1/2] Generating examples with disagreement filtering...
 Target: 2 disagreement examples
 Using model: gemini-2.5-flash
-
-[STEP 0] Fetching seed examples from GitHub issues...
-  Found 5 code examples from python/mypy
-  Found 5 code examples from astral-sh/ty
-Total: 10 examples from GitHub issues
 
 [Attempt 1/5] Generating batch of 15...
   Using 5 GitHub issue seeds
@@ -259,6 +307,7 @@ GENERATION COMPLETE: 2 disagreements from 19 total examples</code></pre>
 <p><strong>No disagreements found</strong> — Increase <code>--max-attempts</code> or <code>--batch-size</code>, or try <code>--model gemini-2.5-pro</code>.</p>
 <p><strong>GitHub rate limit errors</strong> — Set <code>GITHUB_TOKEN</code>, or use <code>--no-github</code>.</p>
 <p><strong>Type checker not found</strong> — Use <code>uv run</code> (auto-installs), or manually <code>pip install mypy pyrefly zuban ty</code>.</p>
+<p><strong>Local model not responding</strong> — Check that your llama-server process is running and the port matches <code>--openai-base-url</code>. The model name passed to <code>--model</code> must match whatever name the server expects (check your server’s <code>/v1/models</code> endpoint if unsure).</p>
 
 
 </section>

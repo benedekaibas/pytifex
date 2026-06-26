@@ -130,12 +130,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#evaluation-system-comprehensive_eval.py" id="toc-evaluation-system-comprehensive_eval.py" class="nav-link" data-scroll-target="#evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</a>
   <ul class="collapse">
-  <li><a href="#phase-0-oracle" id="toc-phase-0-oracle" class="nav-link" data-scroll-target="#phase-0-oracle">Phase 0 — Oracle</a></li>
-  <li><a href="#phase-1-runtime-crash-detection" id="toc-phase-1-runtime-crash-detection" class="nav-link" data-scroll-target="#phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</a></li>
-  <li><a href="#phase-2-hypothesis-property-based-testing" id="toc-phase-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#phase-2-hypothesis-property-based-testing">Phase 2 — Hypothesis Property-Based Testing</a></li>
-  <li><a href="#phase-3-pep-specification-compliance" id="toc-phase-3-pep-specification-compliance" class="nav-link" data-scroll-target="#phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</a></li>
-  <li><a href="#phase-4-static-flow-analysis" id="toc-phase-4-static-flow-analysis" class="nav-link" data-scroll-target="#phase-4-static-flow-analysis">Phase 4 — Static Flow Analysis</a></li>
-  <li><a href="#agent-resolution" id="toc-agent-resolution" class="nav-link" data-scroll-target="#agent-resolution">Agent Resolution</a></li>
+  <li><a href="#tier-1-runtime-crash-detection" id="toc-tier-1-runtime-crash-detection" class="nav-link" data-scroll-target="#tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</a></li>
+  <li><a href="#tier-2-hypothesis-property-based-testing" id="toc-tier-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</a></li>
   <li><a href="#disclaimer" id="toc-disclaimer" class="nav-link" data-scroll-target="#disclaimer">Disclaimer</a></li>
   </ul></li>
   </ul></li>
@@ -150,7 +146,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="architecture" class="level1">
 <h1>Architecture</h1>
-<p>Pytifex is a hybrid system that orchestrates cloud-based LLM generation with local type-checker execution and multi-phased evaluation. This page walks through every major subsystem so you can orient yourself in the codebase quickly.</p>
+<p>Pytifex is a hybrid system that orchestrates LLM-based code generation with local type-checker execution and objective two-tier evaluation. This page walks through every major subsystem so you can orient yourself in the codebase quickly.</p>
 <hr>
 <section id="system-overview" class="level2">
 <h2 class="anchored" data-anchor-id="system-overview">System Overview</h2>
@@ -168,29 +164,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>Cloud (Gemini API)</strong></td>
-<td>Code generation, refinement of non-divergent examples, and resolution of <code>UNCERTAIN</code> evaluation verdicts</td>
+<td><strong>LLM API</strong></td>
+<td>Code generation and refinement of non-divergent examples (Gemini, OpenAI, Cohere, or any OpenAI-compatible local server)</td>
 </tr>
 <tr class="even">
 <td><strong>Local machine</strong></td>
-<td>GitHub issue fetching, type-checker execution via <code>subprocess</code>, AST analysis, runtime crash detection, Hypothesis testing, and static flow analysis</td>
+<td>GitHub issue fetching, type-checker execution via <code>subprocess</code>, runtime crash detection, and Hypothesis property-based testing</td>
 </tr>
 </tbody>
 </table>
 <blockquote class="blockquote">
-<p><strong>Important:</strong> Type-checker outputs are <em>real</em>. Every status comes from actually invoking <code>mypy</code>, <code>pyrefly</code>, <code>ty</code>, and <code>pyright</code> in a subprocess — never from LLM simulation.</p>
+<p><strong>Important:</strong> Type-checker outputs are <em>real</em>. Every status comes from actually invoking <code>mypy</code>, <code>pyrefly</code>, <code>ty</code>, and <code>zuban</code> in a subprocess — never from LLM simulation.</p>
 </blockquote>
 <pre class="text"><code>┌──────────────────────────────────────────────────────────┐
-│                     Cloud (Gemini)                       │
-│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐  │
-│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │  │
-│  └─────────────┘  └────────────┘  └───────────────────┘  │
+│                       LLM API                            │
+│  ┌─────────────┐  ┌────────────┐                         │
+│  │ Code Gen    │  │ Refinement │                         │
+│  └─────────────┘  └────────────┘                         │
 └────────────────────────┬─────────────────────────────────┘
                          │ API calls
 ┌────────────────────────▼─────────────────────────────────┐
 │                   Local Machine                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │  │
+│  │ GitHub Issue │  │ Type Checker │  │  Two-Tier      │  │
 │  │   Mining     │  │  Execution   │  │  Evaluation    │  │
 │  └──────────────┘  └──────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────┘</code></pre>
@@ -221,14 +217,46 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="step-1-code-generation" class="level3">
 <h3 class="anchored" data-anchor-id="step-1-code-generation">Step 1 — Code Generation</h3>
 <p><strong>Modules:</strong> <code>prompts.py</code>, <code>agent.py</code></p>
-<p>A batch of 3–5 seed examples is shown to Gemini with a request to generate <em>new</em> variations that are likely to trigger type-checker disagreements.</p>
+<p>A batch of 3–5 seed examples is shown to the LLM with a request to generate <em>new</em> variations that are likely to trigger type-checker disagreements.</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># prompts.py</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> build_seed_based_prompt(seeds[:<span class="dv">5</span>])</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Falls back when no seeds are available</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> seeds:</span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_expert_prompt()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>agent.py</code> module wraps the Gemini API client using a Pydantic model for structured request/response handling.</p>
+<p>The <code>agent.py</code> module provides three provider backends, each as a Pydantic model:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 24%">
+<col style="width: 34%">
+<col style="width: 41%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Class</th>
+<th>Provider</th>
+<th>Activation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>GetAccessToGemini</code></td>
+<td>Google Gemini</td>
+<td>default; model name starts with <code>gemini-</code></td>
+</tr>
+<tr class="even">
+<td><code>GetAccessToCohere</code></td>
+<td>Cohere</td>
+<td>model name starts with <code>command</code></td>
+</tr>
+<tr class="odd">
+<td><code>GetAccessToOpenAI</code></td>
+<td>OpenAI-compatible</td>
+<td><code>--openai-base-url</code> is set</td>
+</tr>
+</tbody>
+</table>
+<p><code>GetAccessToOpenAI</code> uses the standard <code>/v1/chat/completions</code> endpoint and works with the real OpenAI API, local llama-server instances, Ollama, vLLM, or any compatible server.</p>
 </section>
 <section id="step-2-type-checker-execution" class="level3">
 <h3 class="anchored" data-anchor-id="step-2-type-checker-execution">Step 2 — Type Checker Execution</h3>
@@ -259,99 +287,35 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="evaluation-system-comprehensive_eval.py" class="level2">
 <h2 class="anchored" data-anchor-id="evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</h2>
-<p>Evaluation proceeds phase-by-phase from highest confidence to lowest. Once a phase produces a confident verdict, later phases are skipped.</p>
-<section id="phase-0-oracle" class="level3">
-<h3 class="anchored" data-anchor-id="phase-0-oracle">Phase 0 — Oracle</h3>
-<p><strong>Modules:</strong> <code>oracle.py</code>, <code>source_analysis.py</code></p>
-<p>AST-based analysis that identifies definitive PEP violations without running the code.</p>
-<ul>
-<li><code>source_analysis.py</code> parses the source and extracts typing-rule facts (e.g., “line 12 assigns <code>int</code> to a variable annotated <code>str</code>”).</li>
-<li><code>oracle.py</code> matches these findings against each checker’s diagnostics using <strong>line tolerance ±5</strong> and <strong>error-code matching</strong>.</li>
-</ul>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># oracle.py (simplified)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> finding <span class="kw">in</span> oracle_findings:</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> diag <span class="kw">in</span> checker_diagnostics:</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (<span class="bu">abs</span>(finding.line <span class="op">-</span> diag.line) <span class="op">&lt;=</span> <span class="dv">5</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>                <span class="kw">and</span> finding.error_code <span class="op">==</span> diag.error_code):</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            matched <span class="op">=</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.</p>
+<section id="tier-1-runtime-crash-detection" class="level3">
+<h3 class="anchored" data-anchor-id="tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</h3>
+<p>Executes the source code and catches runtime exceptions that signal a genuine type error (<code>TypeError</code>, <code>KeyError</code>, <code>AttributeError</code>). The tool walks the <strong>full traceback</strong> including exception chains (<code>__cause__</code> / <code>__context__</code>) and isolates <code>try</code>/<code>except</code> bodies to surface swallowed errors.</p>
+<p>A crash proves a <strong>false negative</strong>: any checker that said “OK” is definitively wrong.</p>
+<p><strong>Confidence:</strong> 0.95</p>
 </section>
-<section id="phase-1-runtime-crash-detection" class="level3">
-<h3 class="anchored" data-anchor-id="phase-1-runtime-crash-detection">Phase 1 — Runtime Crash Detection</h3>
-<p>Executes the source code in a sandboxed subprocess and catches runtime exceptions that signal a genuine type error:</p>
-<ul>
-<li><code>TypeError</code></li>
-<li><code>KeyError</code></li>
-<li><code>AttributeError</code></li>
-</ul>
-<p>The tool walks the <strong>full traceback</strong> including exception chains (<code>__cause__</code> / <code>__context__</code>) and also <strong>isolates <code>try</code>/<code>except</code> bodies</strong> to surface swallowed errors.</p>
-<p><strong>Confidence:</strong> 0.95–1.0</p>
-</section>
-<section id="phase-2-hypothesis-property-based-testing" class="level3">
-<h3 class="anchored" data-anchor-id="phase-2-hypothesis-property-based-testing">Phase 2 — Hypothesis Property-Based Testing</h3>
+<section id="tier-2-hypothesis-property-based-testing" class="level3">
+<h3 class="anchored" data-anchor-id="tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</h3>
 <p><strong>Module:</strong> <code>hypothesis_tier2.py</code></p>
-<p>Extracts function signatures via AST inspection, builds <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> strategies from type hints, and runs <code>@given</code> tests to find runtime type violations.</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># hypothesis_tier2.py (conceptual)</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>sig <span class="op">=</span> extract_signature(func_node)           <span class="co"># AST-based</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>strategy <span class="op">=</span> build_strategy_from_hints(sig)    <span class="co"># maps hints → st.*</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">@given</span>(strategy)</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> test(args):</span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    func(<span class="op">*</span>args)                              <span class="co"># any TypeError ⇒ real bug</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Targeted tests from <code>targeted_tests.py</code> are also executed in this phase.</p>
-</section>
-<section id="phase-3-pep-specification-compliance" class="level3">
-<h3 class="anchored" data-anchor-id="phase-3-pep-specification-compliance">Phase 3 — PEP Specification Compliance</h3>
-<p>Matches a curated set of <code>PEP_RULES</code> (regex patterns mapped to expected checker behaviour) against each checker’s output lines. Covered PEPs:</p>
-<blockquote class="blockquote">
-<p>484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673, 675, 681, 692, 695, 696, 698, 705, 742</p>
-</blockquote>
-</section>
-<section id="phase-4-static-flow-analysis" class="level3">
-<h3 class="anchored" data-anchor-id="phase-4-static-flow-analysis">Phase 4 — Static Flow Analysis</h3>
-<p><strong>Module:</strong> <code>static_tier4.py</code></p>
-<p>A collection of lightweight static checks:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 35%">
-<col style="width: 65%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Check</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Import availability</td>
-<td>Verifies that imported names actually exist in their modules</td>
-</tr>
-<tr class="even">
-<td>Variance constraints</td>
-<td>Validates covariance / contravariance on generic parameters</td>
-</tr>
-<tr class="odd">
-<td>Type narrowing flow</td>
-<td>Traces narrowing guards (<code>isinstance</code>, <code>is None</code>, etc.) through control flow</td>
-</tr>
-<tr class="even">
-<td>Nominal type boundaries</td>
-<td>Ensures structural types aren’t used where nominal types are required</td>
-</tr>
-<tr class="odd">
-<td>Match exhaustiveness</td>
-<td>Confirms <code>match</code> statements cover all variants</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="agent-resolution" class="level3">
-<h3 class="anchored" data-anchor-id="agent-resolution">Agent Resolution</h3>
-<p>Any example still marked <code>UNCERTAIN</code> after all tiers is forwarded to a <strong>Gemini API call</strong> for a final LLM-based verdict.</p>
+<p>Extracts function signatures via AST inspection, builds <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> strategies from type hints, and runs <code>@given</code> tests with generated inputs.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># hypothesis_tier2.py (conceptual)</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>sig <span class="op">=</span> extract_signature(func_node)           <span class="co"># AST-based</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>strategy <span class="op">=</span> build_strategy_from_hints(sig)    <span class="co"># maps hints → st.*</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>beartyped_fn <span class="op">=</span> beartype(fn)                  <span class="co"># enforce input conformance at call time</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="at">@given</span>(strategy)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> test(args):</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> beartyped_fn(<span class="op">*</span>args)             <span class="co"># crash ⇒ false negative</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    check_type(result, return_hint)          <span class="co"># success ⇒ success witness</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>False negatives (Tier 2a):</strong> If a call crashes despite inputs being type-conformant (confirmed by <a href="https://beartype.readthedocs.io/">beartype</a>), that is a proven type bug. Any checker that said “OK” missed it.</p>
+<p><strong>False positives (Tier 2b):</strong> If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed <code>typeguard.check_type()</code> — those calls are recorded as <strong>success witnesses</strong>. A success witness proves the code is well-typed; any checker that said “error” has a proven false positive.</p>
+<p><strong>Confidence:</strong> 0.85 (false negatives) / 0.90 (false positives, beartype-enforced)</p>
 <hr>
 </section>
 <section id="disclaimer" class="level3">
 <h3 class="anchored" data-anchor-id="disclaimer">Disclaimer</h3>
-<p>Since Pytifex is a research tool under heavy development the architecture of the evaluation can change in the future.</p>
+<p>Since Pytifex is a research tool under active development, the architecture may evolve in future versions.</p>
 
 
 </section>
