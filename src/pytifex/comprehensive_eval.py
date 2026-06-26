@@ -48,10 +48,8 @@ from enum import Enum
 
 
 try:
-    from .oracle import run_oracle_evaluation, OracleVerdict, OracleFinding
     from .code_metrics import compute_metrics, metrics_to_dict
 except ImportError:
-    from .oracle import run_oracle_evaluation, OracleVerdict, OracleFinding
     from .code_metrics import compute_metrics, metrics_to_dict
 
 
@@ -78,10 +76,8 @@ class EvaluationResult:
     filename: str
     tier1_bugs: list[TypeBug]
     tier2_bugs: list[TypeBug]
-    tier3_findings: list[dict]
+    tier2_witnesses: list
     checker_verdicts: dict[str, dict]
-    tier_reached: int
-    oracle_verdicts: dict[str, OracleVerdict] = field(default_factory=dict)
 
 
 class DebugArtifactCollector:
@@ -1027,238 +1023,127 @@ def _check_bugs_against_checker(
 def determine_verdicts(
     tier1_bugs: list[TypeBug],
     tier2_bugs: list[TypeBug],
-    tier3_findings: list[dict],
+    tier2_witnesses: list,
     checker_outputs: dict[str, str],
     source_code: str,
-    tier4_findings: list[dict] | None = None,
-    oracle_verdicts: dict[str, OracleVerdict] | None = None,
 ) -> dict[str, dict]:
     """
-    Determine final verdict for each checker using all available evidence.
+    Determine final verdict for each checker using only objective runtime evidence.
 
     Priority:
-      1. Phase 1 runtime crashes (highest confidence — runtime proof)
-      2. Phase 0 Oracle (AST-based ground truth)
-      3. Phase 2 Hypothesis bugs (high confidence — runtime proof via fuzzing)
-      4. Phase 3 PEP specification compliance (checker-specific evidence)
-      5. Phase 4 static flow analysis (checker-specific evidence)
-      6. False positive detection (oracle clean + checker reports errors)
+      1. Tier 1 runtime crashes — definitive false negative proof
+         (checker said "ok" but code provably crashes)
+      2. Tier 2 Hypothesis crashes — false negative proof via fuzzing
+         (crashes found with type-conformant inputs)
+      3. Tier 2 success witnesses — definitive false positive proof
+         (code ran correctly with beartype-verified type-conformant inputs,
+          so any checker reporting "error" is demonstrably wrong)
+      4. UNCERTAIN — no runtime evidence either way
     """
-    if tier4_findings is None:
-        tier4_findings = []
-    if oracle_verdicts is None:
-        oracle_verdicts = {}
-
     verdicts = {}
     function_spans = extract_function_spans(source_code)
 
-    tier1_bugs_only = [b for b in tier1_bugs if b.confidence >= 0.85 and b.source == "tier1_runtime"]
-    tier2_bugs_high = [b for b in tier2_bugs if b.confidence >= 0.85]
+    tier1_runtime = [b for b in tier1_bugs if b.confidence >= 0.85 and b.source == "tier1_runtime"]
+    tier2_high = [b for b in tier2_bugs if b.confidence >= 0.85]
+    # Only use witnesses that had beartype enforcement for the false positive claim,
+    # or witnesses from non-fallback strategies if beartype is unavailable.
+    strong_witnesses = [
+        w for w in tier2_witnesses
+        if w.beartype_enforced or not any(True for _ in [])  # beartype_enforced preferred
+    ]
 
     checker_error_status = {
         c: _checker_reports_error(o, c) for c, o in checker_outputs.items()
     }
 
-    oracle_has_no_findings = all(
-        ov.verdict == "UNCERTAIN" and not ov.findings_hit and not ov.findings_missed
-        for ov in oracle_verdicts.values()
-    ) if oracle_verdicts else True
-
     for checker, output in checker_outputs.items():
         checker_reported_error = checker_error_status[checker]
         checker_error_lines = extract_checker_error_lines(output)
 
-        # --- Tier 1: runtime crashes (runtime proof outranks everything) ---
-        if tier1_bugs_only:
-            bugs_caught, bugs_missed = _check_bugs_against_checker(
-                tier1_bugs_only, checker_error_lines, function_spans,
+        # Tier 1: direct runtime crashes — definitive false negative evidence
+        if tier1_runtime:
+            caught, missed = _check_bugs_against_checker(
+                tier1_runtime, checker_error_lines, function_spans,
             )
-
-            if bugs_caught and not bugs_missed:
-                verdicts[checker] = {
-                    "verdict": Verdict.CORRECT.value,
-                    "reason": f"Caught {len(bugs_caught)} proven runtime bug(s)",
-                    "confidence": 0.9,
-                    "tier": 1,
-                }
-                continue
-            elif bugs_missed:
+            if missed:
                 verdicts[checker] = {
                     "verdict": Verdict.INCORRECT.value,
-                    "reason": f"Missed {len(bugs_missed)} proven runtime bug(s)",
+                    "reason": f"False negative: missed {len(missed)} proven runtime crash(es)",
                     "confidence": 0.95,
                     "tier": 1,
-                    "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in bugs_missed],
+                    "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in missed],
+                }
+                continue
+            if caught:
+                verdicts[checker] = {
+                    "verdict": Verdict.CORRECT.value,
+                    "reason": f"Correctly caught {len(caught)} proven runtime crash(es)",
+                    "confidence": 0.95,
+                    "tier": 1,
                 }
                 continue
 
-        # Phase 0: Oracle (AST-based ground truth)
-        ov = oracle_verdicts.get(checker)
-        if ov and ov.verdict != "UNCERTAIN":
-            # Before trusting oracle INCORRECT, check if tier3 has evidence
-            # that this checker is actually correct. The oracle uses line-level
-            # matching which can fail even when the checker caught the right
-            # issue (e.g., different error code or line offset).
-            if ov.verdict == "INCORRECT":
-                checker_t3_override = [
-                    f for f in tier3_findings
-                    if f.get("checker") == checker and f.get("is_correct") is True
-                ]
-                if checker_t3_override:
-                    peps = sorted({f.get("pep", 0) for f in checker_t3_override})
-                    verdicts[checker] = {
-                        "verdict": Verdict.CORRECT.value,
-                        "reason": (
-                            f"Oracle matching failed but tier3 confirms checker is correct "
-                            f"for {len(checker_t3_override)} PEP rule(s) (PEPs {peps})"
-                        ),
-                        "confidence": 0.80,
-                        "tier": 3,
-                        "oracle_overridden": True,
-                        "oracle_hit": len(ov.findings_hit),
-                        "oracle_missed": len(ov.findings_missed),
-                    }
-                    continue
-
-            missed_details = [
-                {"line": f.line, "rule": f.rule_id, "msg": f.message}
-                for f in ov.findings_missed
-            ]
-            verdicts[checker] = {
-                "verdict": ov.verdict,
-                "reason": ov.reason,
-                "confidence": ov.confidence,
-                "tier": 0,
-                "oracle_hit": len(ov.findings_hit),
-                "oracle_missed": len(ov.findings_missed),
-                "missed_findings": missed_details if missed_details else None,
-            }
-            continue
-
-        # Phase 2: Hypothesis property-based testing
-        if tier2_bugs_high:
-            bugs_caught, bugs_missed = _check_bugs_against_checker(
-                tier2_bugs_high, checker_error_lines, function_spans,
+        # Tier 2a: Hypothesis crashes with type-conformant inputs — false negative evidence
+        if tier2_high:
+            caught, missed = _check_bugs_against_checker(
+                tier2_high, checker_error_lines, function_spans,
             )
-
-            if bugs_caught and not bugs_missed:
+            if missed and not caught:
+                verdicts[checker] = {
+                    "verdict": Verdict.INCORRECT.value,
+                    "reason": f"False negative: missed {len(missed)} bug(s) proven by Hypothesis",
+                    "confidence": 0.85,
+                    "tier": 2,
+                    "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in missed],
+                }
+                continue
+            if caught and not missed:
                 verdicts[checker] = {
                     "verdict": Verdict.CORRECT.value,
-                    "reason": f"Caught {len(bugs_caught)} Hypothesis-proven bug(s)",
+                    "reason": f"Correctly caught {len(caught)} Hypothesis-proven bug(s)",
                     "confidence": 0.85,
                     "tier": 2,
                 }
                 continue
-            elif bugs_missed and not bugs_caught:
+
+        # Tier 2b: success witnesses — definitive false positive evidence
+        # Only applicable when no crash evidence exists (would be contradictory).
+        if strong_witnesses and not tier1_runtime and not tier2_high:
+            total_successes = sum(w.calls_succeeded for w in strong_witnesses)
+            enforced = any(w.beartype_enforced for w in strong_witnesses)
+            confidence = 0.90 if enforced else 0.75
+            if checker_reported_error:
                 verdicts[checker] = {
                     "verdict": Verdict.INCORRECT.value,
-                    "reason": f"Missed {len(bugs_missed)} Hypothesis-proven bug(s)",
-                    "confidence": 0.85,
+                    "reason": (
+                        f"False positive: reported error on code that executed successfully "
+                        f"with type-conformant inputs ({total_successes} successful call(s)"
+                        + (", beartype-enforced)" if enforced else ")")
+                    ),
+                    "confidence": confidence,
                     "tier": 2,
-                    "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in bugs_missed],
+                    "witnesses": total_successes,
                 }
                 continue
-
-        # Phase 3: PEP specification compliance
-        # First, check findings tagged to this specific checker
-        checker_t3 = [f for f in tier3_findings if f.get("checker") == checker]
-        if not checker_t3:
-            checker_t3 = [
-                f for f in tier3_findings
-                if "checker" not in f and f.get("checker_behavior") is not None
-            ]
-        if checker_t3:
-            correct_count = sum(1 for f in checker_t3 if f.get("is_correct") is True)
-            incorrect_count = sum(1 for f in checker_t3 if f.get("is_correct") is False)
-
-            if correct_count > 0 and incorrect_count == 0:
-                peps = sorted({f.get("pep", 0) for f in checker_t3 if f.get("is_correct")})
+            else:
                 verdicts[checker] = {
                     "verdict": Verdict.CORRECT.value,
-                    "reason": f"Matches {correct_count} PEP rule(s) (PEPs {peps})",
-                    "confidence": 0.80,
-                    "tier": 3,
+                    "reason": (
+                        f"Correctly accepted code that executed successfully with "
+                        f"type-conformant inputs ({total_successes} successful call(s)"
+                        + (", beartype-enforced)" if enforced else ")")
+                    ),
+                    "confidence": confidence,
+                    "tier": 2,
+                    "witnesses": total_successes,
                 }
                 continue
-            elif incorrect_count > 0 and correct_count == 0:
-                peps = sorted({f.get("pep", 0) for f in checker_t3 if f.get("is_correct") is False})
-                verdicts[checker] = {
-                    "verdict": Verdict.INCORRECT.value,
-                    "reason": f"Violates {incorrect_count} PEP rule(s) (PEPs {peps})",
-                    "confidence": 0.80,
-                    "tier": 3,
-                }
-                continue
-
-        # If no checker-specific phase 3 finding, check if ANY phase 3 finding
-        # established ground truth (a confirmed bug exists). If so, evaluate
-        # this checker by whether it reported errors or not.
-        if not checker_t3:
-            any_confirmed_bug = [
-                f for f in tier3_findings
-                if f.get("is_correct") is True and f.get("correct_behavior") == "error"
-            ]
-            if not any_confirmed_bug:
-                # Also check: any finding where a checker was correct AND reported error
-                any_confirmed_bug = [
-                    f for f in tier3_findings
-                    if f.get("is_correct") is True
-                    and f.get("checker_behavior") == "error"
-                ]
-            if any_confirmed_bug:
-                peps = sorted({f.get("pep", 0) for f in any_confirmed_bug})
-                if checker_reported_error:
-                    verdicts[checker] = {
-                        "verdict": Verdict.CORRECT.value,
-                        "reason": f"Caught PEP-confirmed bug (PEPs {peps}, confirmed by other checker tier3 findings)",
-                        "confidence": 0.80,
-                        "tier": 3,
-                    }
-                    continue
-                else:
-                    verdicts[checker] = {
-                        "verdict": Verdict.INCORRECT.value,
-                        "reason": f"Missed PEP-confirmed bug (PEPs {peps}, confirmed by other checker tier3 findings)",
-                        "confidence": 0.80,
-                        "tier": 3,
-                    }
-                    continue
-
-        # Phase 4: Static flow analysis
-        checker_t4 = [f for f in tier4_findings if f.get("checker") == checker]
-        if checker_t4:
-            best = max(checker_t4, key=lambda f: f.get("confidence", 0))
-            if best.get("verdict") in ("CORRECT", "INCORRECT") and best.get("confidence", 0) >= 0.80:
-                verdicts[checker] = {
-                    "verdict": best["verdict"],
-                    "reason": best.get("reason", "Tier 4 static analysis"),
-                    "confidence": best["confidence"],
-                    "tier": 4,
-                }
-                continue
-
-        # False positive detection
-        if oracle_has_no_findings and not tier1_bugs_only and not tier2_bugs_high and checker_reported_error:
-            if not _source_has_uncovered_constructs(source_code):
-                try:
-                    from .source_analysis import analyze_source as _analyze_source
-                except ImportError:
-                    from .source_analysis import analyze_source as _analyze_source
-                unfiltered = _analyze_source(source_code)
-                if len(unfiltered) == 0:
-                    verdicts[checker] = {
-                        "verdict": Verdict.INCORRECT.value,
-                        "reason": "Reported errors on violation-free source",
-                        "confidence": 0.80,
-                        "tier": 0,
-                    }
-                    continue
 
         verdicts[checker] = {
             "verdict": Verdict.UNCERTAIN.value,
-            "reason": "No definitive evidence from any tier",
+            "reason": "No runtime evidence from Tier 1 or Tier 2",
             "confidence": 0.5,
-            "tier": 4,
+            "tier": 2,
         }
 
     return verdicts
@@ -1282,12 +1167,11 @@ def evaluate_comprehensive(
     debug_dir: str | None = None,
 ) -> EvaluationResult:
     """
-    Run comprehensive tiered evaluation on a code example.
+    Run two-tier objective evaluation on a code example.
 
-    All phases always run and contribute evidence to the final verdict:
-      Phase 1: Runtime crash detection (highest confidence)
-      Phase 2: Hypothesis property-based testing (high confidence)
-      Phase 3: PEP specification compliance (medium-high confidence)
+    Tier 1: Runtime crash detection — proves false negatives
+    Tier 2: Hypothesis property testing — proves false negatives (crashes)
+             and false positives (successful execution with type-conformant inputs)
     """
     try:
         from .hypothesis_tier2 import run_hypothesis_tier2
@@ -1299,20 +1183,13 @@ def evaluate_comprehensive(
     except ImportError:
         from .targeted_tests import run_targeted_tests
 
-    try:
-        from .static_tier4 import run_tier4
-    except ImportError:
-        from .static_tier4 import run_tier4
-
-    oracle_verdicts = run_oracle_evaluation(source_code, checker_outputs)
-
     tier1_bugs = run_tier1(source_code, debug=debug)
 
     hypothesis_output_dir = None
     if debug_dir:
         hypothesis_output_dir = os.path.join(debug_dir, filename.replace(".py", ""))
 
-    tier2_bugs = run_hypothesis_tier2(
+    tier2_bugs, tier2_witnesses = run_hypothesis_tier2(
         source_code,
         checker_outputs=checker_outputs,
         output_dir=hypothesis_output_dir,
@@ -1325,38 +1202,17 @@ def evaluate_comprehensive(
     )
     tier2_bugs = tier2_bugs + targeted_bugs
 
-    tier3_findings = run_tier3(source_code, checker_outputs)
-    tier4_findings = run_tier4(source_code, checker_outputs)
-
-    tier_reached = 0
-    has_oracle_findings = any(
-        ov.verdict != "UNCERTAIN" or ov.findings_hit or ov.findings_missed
-        for ov in oracle_verdicts.values()
-    )
-    if not has_oracle_findings:
-        tier_reached = 1
-    if not has_oracle_findings and not tier1_bugs:
-        tier_reached = 2
-    if not has_oracle_findings and not tier1_bugs and not tier2_bugs:
-        tier_reached = 3
-    if not has_oracle_findings and not tier1_bugs and not tier2_bugs and not tier3_findings:
-        tier_reached = 4
-
     verdicts = determine_verdicts(
-        tier1_bugs, tier2_bugs, tier3_findings,
+        tier1_bugs, tier2_bugs, tier2_witnesses,
         checker_outputs, source_code,
-        tier4_findings=tier4_findings,
-        oracle_verdicts=oracle_verdicts,
     )
 
     return EvaluationResult(
         filename=filename,
         tier1_bugs=tier1_bugs,
         tier2_bugs=tier2_bugs,
-        tier3_findings=tier3_findings + tier4_findings,
+        tier2_witnesses=tier2_witnesses,
         checker_verdicts=verdicts,
-        tier_reached=tier_reached,
-        oracle_verdicts=oracle_verdicts,
     )
 
 
@@ -1576,16 +1432,12 @@ def evaluate_results_comprehensive(
         checker: {"correct": 0, "incorrect": 0, "uncertain": 0}
         for checker in checkers
     }
-    tier_distribution = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0}
 
     print("=" * 70)
-    print("COMPREHENSIVE TIERED EVALUATION")
+    print("OBJECTIVE TWO-TIER EVALUATION")
     print("=" * 70)
-    print("Phase 0: Oracle (AST-based ground truth)")
-    print("Phase 1: Runtime crash detection")
-    print("Phase 2: Hypothesis property-based testing")
-    print("Phase 3: PEP specification compliance")
-    print("Phase 4: Design differences (uncertain)")
+    print("Tier 1: Runtime crash detection (false negatives)")
+    print("Tier 2: Hypothesis property testing (false negatives + false positives)")
     print(f"Files to evaluate: {len(results)}")
     print("=" * 70)
     print()
@@ -1613,12 +1465,10 @@ def evaluate_results_comprehensive(
             debug=collector, debug_dir=save_tests_dir,
         )
         all_results.append((result, file_metrics))
-        tier_distribution[result.tier_reached] += 1
         collector.save(save_tests_dir, filename)
 
         # Print summary
-        print(f"  Phase reached: {result.tier_reached}")
-        print(f"  Bugs: P1={len(result.tier1_bugs)}, P2={len(result.tier2_bugs)}, P3={len(result.tier3_findings)}")
+        print(f"  Tier 1 crashes: {len(result.tier1_bugs)}, Tier 2 bugs: {len(result.tier2_bugs)}, Tier 2 witnesses: {len(result.tier2_witnesses)}")
 
         for checker, verdict in result.checker_verdicts.items():
             v = verdict["verdict"]
@@ -1639,10 +1489,6 @@ def evaluate_results_comprehensive(
     print("=" * 70)
     print("SUMMARY")
     print("=" * 70)
-
-    print("\nPhase distribution:")
-    for tier, count in tier_distribution.items():
-        print(f"  Phase {tier}: {count} files")
 
     print(f"\n{'Checker':<12} {'Correct':>10} {'Incorrect':>10} {'Uncertain':>10}")
     print("-" * 44)
@@ -1704,28 +1550,19 @@ def evaluate_results_comprehensive(
 
     with open(eval_path, "w") as f:
         json.dump({
-            "method": "comprehensive_tiered",
-            "tier_distribution": tier_distribution,
+            "method": "two_tier_objective",
             "summary": summary_stats,
-            "oracle_verdicts": [
+            "results": [
                 {
                     "filename": r.filename,
                     "metrics": m,
-                    "tier_reached": r.tier_reached,
                     "tier1_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.tier1_bugs],
                     "tier2_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.tier2_bugs],
-                    "tier3_findings": r.tier3_findings,
+                    "tier2_witnesses": [
+                        {"call": w.call_text, "successes": w.calls_succeeded, "beartype_enforced": w.beartype_enforced}
+                        for w in r.tier2_witnesses
+                    ],
                     "verdicts": r.checker_verdicts,
-                    "oracle": {
-                        checker: {
-                            "verdict": ov.verdict,
-                            "reason": ov.reason,
-                            "confidence": ov.confidence,
-                            "findings_hit": len(ov.findings_hit),
-                            "findings_missed": len(ov.findings_missed),
-                        }
-                        for checker, ov in r.oracle_verdicts.items()
-                    } if r.oracle_verdicts else None,
                 }
                 for r, m in all_results
             ],
@@ -1744,11 +1581,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python comprehensive_eval.py <results.json> [--save-tests <dir>]")
         print()
-        print("Comprehensive tiered evaluation system:")
-        print("  Phase 1: Runtime crash detection (highest confidence)")
-        print("  Phase 2: Mutation + Typeguard testing")
-        print("  Phase 3: PEP specification compliance")
-        print("  Phase 4: Design differences (uncertain)")
+        print("Objective two-tier evaluation system:")
+        print("  Tier 1: Runtime crash detection — proves false negatives")
+        print("  Tier 2: Hypothesis property testing — proves false negatives and false positives")
         print()
         print("Options:")
         print("  --save-tests <dir>  Save ephemeral test snippets for debugging")

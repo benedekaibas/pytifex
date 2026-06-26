@@ -4,34 +4,69 @@
 
 - **Python 3.12+**
 - [**uv**](https://docs.astral.sh/uv/) — the recommended package runner (handles all dependency installation automatically)
-- A **Google Gemini API key** — [get one here](https://aistudio.google.com/apikey)
+- An **LLM API key** — Gemini is the default, but OpenAI and local models are also supported (see below)
 
 ## Quick Start
 
 ```bash
-# 1. Install pytifex through PyPi (https://pypi.org/project/pytifex/)
+# 1. Install pytifex
 pip install pytifex
 
-# 2. Set your API key
-export GEMINI_API_KEY=your_key
+# 2. Set your API key (choose one provider)
+export GEMINI_API_KEY=your_key      # Google Gemini (default)
+# export OPENAI_API_KEY=your_key    # OpenAI
+# (no key needed for local models)
 
 # 3. Run the full pipeline
-uv run pytifex --num-examples 5
-
-*or*
-
 uv run pytifex
 ```
 
 That's it. `uv` automatically installs all dependencies (including all four type checkers) on first run.
 
+## Choosing an LLM Provider
+
+### Google Gemini (default)
+
+```bash
+export GEMINI_API_KEY=your_key
+uv run pytifex                             # uses gemini-2.5-flash by default
+uv run pytifex --model gemini-2.5-pro      # more capable model
+```
+
+Get a Gemini API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+
+### OpenAI
+
+```bash
+export OPENAI_API_KEY=your_key
+uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+```
+
+### Local Model (llama-server, Ollama, vLLM)
+
+Any server that exposes an OpenAI-compatible `/v1/chat/completions` endpoint works. No API key is needed for local servers.
+
+```bash
+# Start your local server first (example: llama.cpp llama-server)
+# llama-server -m qwen3-6b.gguf --port 8080
+
+uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
+```
+
+### Cohere
+
+```bash
+export COHERE_API_KEY=your_key
+uv run pytifex --model command-a-03-2025
+```
+
 ## What Happens When You Run It
 
 1. **Seed mining** — Pytifex fetches closed bug reports from mypy, pyrefly, and ty GitHub repositories
-2. **Code generation** — Seeds are sent to Gemini, which generates new code variations targeting similar edge cases
+2. **Code generation** — Seeds are sent to the LLM, which generates new code variations targeting similar edge cases
 3. **Type checking** — Each generated example is run through mypy, pyrefly, zuban, and ty
 4. **Filtering** — Only examples where checkers *disagree* are kept
-5. **Evaluation** — A multi-tiered system determines which checker is correct
+5. **Evaluation** — A two-tier objective system determines which checker is correct using runtime evidence only
 
 Output is saved to `generated_examples/<timestamp>/`.
 
@@ -53,5 +88,5 @@ uv run pytifex --no-github
 
 - **[Installation](installation.qmd)** — Detailed setup including manual installation
 - **[Usage](usage.qmd)** — Full CLI reference, commands, and options
+- **[Evaluation](evaluation.qmd)** — Understand how the two-tier objective evaluation works
 - **[Architecture](architecture.qmd)** — Understand how the pipeline works under the hood
-

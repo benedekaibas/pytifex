@@ -43,6 +43,15 @@ try:
 except ImportError:
     HAS_TYPEGUARD = False
 
+try:
+    from beartype import beartype as _beartype
+    from beartype.roar import BeartypeCallHintParamViolation
+    HAS_BEARTYPE = True
+except ImportError:
+    HAS_BEARTYPE = False
+    _beartype = None  # type: ignore
+    BeartypeCallHintParamViolation = None  # type: ignore
+
 
 class Verdict(Enum):
     CORRECT = "CORRECT"
@@ -58,6 +67,21 @@ class TypeBug:
     source: str
     confidence: float
     details: dict = field(default_factory=dict)
+
+
+@dataclass
+class SuccessWitness:
+    """Evidence that code executed correctly with type-conformant inputs.
+
+    A single witness proves the code is well-typed for at least one concrete
+    execution, making any checker that reports an error a false positive.
+    beartype_enforced=True means inputs were verified at the call boundary;
+    False means the Hypothesis strategy was type-derived but not runtime-checked.
+    """
+    call_text: str
+    calls_succeeded: int
+    source: str = "tier2_witness"
+    beartype_enforced: bool = False
 
 
 @dataclass
@@ -924,13 +948,13 @@ def _unpack_shared_kwargs(kwargs: dict) -> dict:
 def _run_plan_test(
     plan: InvocationPlan,
     env: dict[str, Any],
-) -> list[TypeBug]:
+) -> tuple[list[TypeBug], SuccessWitness | None]:
     if plan.skipped:
-        return []
+        return [], None
 
     param_strats = _build_param_strats_from_sig(plan, env)
     if param_strats is None:
-        return []
+        return [], None
 
     if plan.kind == CallKind.CONSTRUCTOR:
         return _test_constructor(plan, param_strats, env)
@@ -939,21 +963,29 @@ def _run_plan_test(
     elif plan.kind == CallKind.METHOD:
         return _test_method(plan, param_strats, env)
 
-    return []
+    return [], None
 
 
 def _test_constructor(
     plan: InvocationPlan,
     param_strats: dict[str, Any],
     env: dict[str, Any],
-) -> list[TypeBug]:
+) -> tuple[list[TypeBug], SuccessWitness | None]:
     bugs: list[TypeBug] = []
     cls = plan.callable_obj
     crash_examples: list[dict] = []
     cases_run = 0
+    success_count = 0
+
+    beartyped_cls = cls
+    if HAS_BEARTYPE and _beartype is not None:
+        try:
+            beartyped_cls = _beartype(cls)
+        except Exception:
+            beartyped_cls = cls
 
     def check_ctor(**kwargs):
-        nonlocal cases_run
+        nonlocal cases_run, success_count
         kwargs = _unpack_shared_kwargs(kwargs)
         cases_run += 1
         pos_args = []
@@ -969,7 +1001,7 @@ def _test_constructor(
         try:
             with contextlib.redirect_stdout(io.StringIO()), \
                  contextlib.redirect_stderr(io.StringIO()):
-                instance = cls(*positional, **real_kwargs)
+                instance = beartyped_cls(*positional, **real_kwargs)
             if plan.return_hint and isinstance(plan.return_hint, type):
                 if not isinstance(instance, plan.return_hint):
                     crash_examples.append({
@@ -978,7 +1010,12 @@ def _test_constructor(
                         "type": "ReturnTypeMismatch",
                     })
                     raise AssertionError("type mismatch")
-        except TYPE_ERROR_EXCEPTIONS as e:
+            success_count += 1
+        except Exception as e:
+            if HAS_BEARTYPE and BeartypeCallHintParamViolation is not None and isinstance(e, BeartypeCallHintParamViolation):
+                return  # strategy generated non-conformant input; skip
+            if not isinstance(e, TYPE_ERROR_EXCEPTIONS):
+                return
             if not _is_type_correlated_error(e):
                 return
             crash_examples.append({
@@ -1007,22 +1044,38 @@ def _test_constructor(
             },
         ))
 
-    return bugs
+    witness = None
+    if success_count > 0 and not crash_examples:
+        witness = SuccessWitness(
+            call_text=plan.call_text,
+            calls_succeeded=success_count,
+            beartype_enforced=HAS_BEARTYPE and beartyped_cls is not cls,
+        )
+
+    return bugs, witness
 
 
 def _test_function(
     plan: InvocationPlan,
     param_strats: dict[str, Any],
     env: dict[str, Any],
-) -> list[TypeBug]:
+) -> tuple[list[TypeBug], SuccessWitness | None]:
     bugs: list[TypeBug] = []
     fn = plan.callable_obj
     crash_examples: list[dict] = []
     return_mismatches: list[dict] = []
     cases_run = 0
+    success_count = 0
+
+    beartyped_fn = fn
+    if HAS_BEARTYPE and _beartype is not None:
+        try:
+            beartyped_fn = _beartype(fn)
+        except Exception:
+            beartyped_fn = fn
 
     def check_fn(**kwargs):
-        nonlocal cases_run
+        nonlocal cases_run, success_count
         kwargs = _unpack_shared_kwargs(kwargs)
         cases_run += 1
         pos_args = []
@@ -1038,18 +1091,25 @@ def _test_function(
         try:
             with contextlib.redirect_stdout(io.StringIO()), \
                  contextlib.redirect_stderr(io.StringIO()):
-                result = fn(*positional, **real_kwargs)
+                result = beartyped_fn(*positional, **real_kwargs)
 
             if plan.return_hint is not None and HAS_TYPEGUARD:
                 try:
                     check_type(result, plan.return_hint)
+                    success_count += 1
                 except (TypeCheckError, TypeError) as te:
                     return_mismatches.append({
                         "kwargs": _safe_repr(kwargs),
                         "error": f"Return type mismatch: {te}",
                         "type": "ReturnTypeMismatch",
                     })
-        except TYPE_ERROR_EXCEPTIONS as e:
+            else:
+                success_count += 1
+        except Exception as e:
+            if HAS_BEARTYPE and BeartypeCallHintParamViolation is not None and isinstance(e, BeartypeCallHintParamViolation):
+                return  # strategy generated non-conformant input; skip
+            if not isinstance(e, TYPE_ERROR_EXCEPTIONS):
+                return
             if not _is_type_correlated_error(e):
                 return
             crash_examples.append({
@@ -1094,27 +1154,36 @@ def _test_function(
             },
         ))
 
-    return bugs
+    witness = None
+    if success_count > 0 and not crash_examples:
+        witness = SuccessWitness(
+            call_text=plan.call_text,
+            calls_succeeded=success_count,
+            beartype_enforced=HAS_BEARTYPE and beartyped_fn is not fn,
+        )
+
+    return bugs, witness
 
 
 def _test_method(
     plan: InvocationPlan,
     param_strats: dict[str, Any],
     env: dict[str, Any],
-) -> list[TypeBug]:
+) -> tuple[list[TypeBug], SuccessWitness | None]:
     bugs: list[TypeBug] = []
     cls = env.get(plan.receiver_class_name)
     if cls is None or not isinstance(cls, type):
-        return bugs
+        return bugs, None
 
     recv_strat = _try_construct_instance_strategy(cls, env, depth=0)
     if recv_strat is None:
         plan.skipped = f"cannot construct receiver {plan.receiver_class_name}"
-        return bugs
+        return bugs, None
 
     crash_examples: list[dict] = []
     return_mismatches: list[dict] = []
     cases_run = 0
+    success_count = 0
 
     expected_return = plan.return_hint
     is_self_return = False
@@ -1125,12 +1194,20 @@ def _test_method(
             is_self_return = True
 
     def check_method(receiver, **kwargs):
-        nonlocal cases_run
+        nonlocal cases_run, success_count
         kwargs = _unpack_shared_kwargs(kwargs)
         cases_run += 1
         method = getattr(receiver, plan.method_name, None)
         if method is None:
             return
+
+        beartyped_method = method
+        if HAS_BEARTYPE and _beartype is not None:
+            try:
+                beartyped_method = _beartype(method)
+            except Exception:
+                beartyped_method = method
+
         pos_args = []
         real_kwargs = {}
         for k, v in kwargs.items():
@@ -1144,8 +1221,9 @@ def _test_method(
         try:
             with contextlib.redirect_stdout(io.StringIO()), \
                  contextlib.redirect_stderr(io.StringIO()):
-                result = method(*positional, **real_kwargs)
+                result = beartyped_method(*positional, **real_kwargs)
 
+            return_ok = True
             if is_self_return:
                 if not isinstance(result, type(receiver)):
                     return_mismatches.append({
@@ -1153,6 +1231,7 @@ def _test_method(
                         "error": f"Self return: expected {type(receiver).__name__}, got {type(result).__name__}",
                         "type": "ReturnTypeMismatch",
                     })
+                    return_ok = False
             elif expected_return is not None and HAS_TYPEGUARD:
                 try:
                     check_type(result, expected_return)
@@ -1162,7 +1241,15 @@ def _test_method(
                         "error": f"Return type mismatch: {te}",
                         "type": "ReturnTypeMismatch",
                     })
-        except TYPE_ERROR_EXCEPTIONS as e:
+                    return_ok = False
+
+            if return_ok:
+                success_count += 1
+        except Exception as e:
+            if HAS_BEARTYPE and BeartypeCallHintParamViolation is not None and isinstance(e, BeartypeCallHintParamViolation):
+                return  # strategy generated non-conformant input; skip
+            if not isinstance(e, TYPE_ERROR_EXCEPTIONS):
+                return
             if not _is_type_correlated_error(e):
                 return
             crash_examples.append({
@@ -1214,7 +1301,15 @@ def _test_method(
             },
         ))
 
-    return bugs
+    witness = None
+    if success_count > 0 and not crash_examples:
+        witness = SuccessWitness(
+            call_text=plan.call_text,
+            calls_succeeded=success_count,
+            beartype_enforced=HAS_BEARTYPE,
+        )
+
+    return bugs, witness
 
 
 def _build_hypothesis_test(fn, param_strats: dict[str, Any]):
@@ -1536,7 +1631,7 @@ def run_hypothesis_tier2(
     annotations: list[TypeAnnotation] | None = None,
     checker_outputs: dict[str, str] | None = None,
     output_dir: str | None = None,
-) -> list[TypeBug]:
+) -> tuple[list[TypeBug], list[SuccessWitness]]:
     """
     Run signature-driven Hypothesis property testing (Phase 2).
 
@@ -1546,22 +1641,28 @@ def run_hypothesis_tier2(
     4. Build Hypothesis strategies from concrete parameter type hints.
     5. Run @given(...) tests that call real code, catching runtime exceptions.
     6. Check return types (including Self substitution).
+    7. Record SuccessWitnesses for calls that completed with type-conformant
+       inputs (beartype-enforced when available) — used for false positive
+       detection in the verdict layer.
+
+    Returns (bugs, witnesses). bugs are false negative evidence; witnesses
+    are false positive evidence (code ran correctly with conformant inputs).
     """
     if not HAS_HYPOTHESIS:
-        return []
+        return [], []
 
     try:
         tree = ast.parse(source_code)
     except SyntaxError:
-        return []
+        return [], []
 
     env = _build_source_env(source_code)
     if env is None:
-        return []
+        return [], []
 
     plans = _extract_definitions(tree)
     if not plans:
-        return []
+        return [], []
 
     resolved_plans: list[InvocationPlan] = []
     for plan in plans:
@@ -1572,17 +1673,20 @@ def run_hypothesis_tier2(
             resolved_plans.append(plan)
 
     bugs: list[TypeBug] = []
+    witnesses: list[SuccessWitness] = []
     seen_bugs: set[tuple[int, str, str]] = set()
     for plan in resolved_plans:
-        plan_bugs = _run_plan_test(plan, env)
+        plan_bugs, witness = _run_plan_test(plan, env)
         for bug in plan_bugs:
             key = (bug.line, bug.bug_type, bug.message[:100])
             if key not in seen_bugs:
                 seen_bugs.add(key)
                 bugs.append(bug)
+        if witness is not None:
+            witnesses.append(witness)
 
     if output_dir:
         _save_artifacts(resolved_plans, bugs, source_code, output_dir)
 
-    return bugs
+    return bugs, witnesses
 

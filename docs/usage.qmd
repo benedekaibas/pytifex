@@ -1,6 +1,6 @@
 # Usage
 
-Run from the `src/tc_disagreement` directory.
+Run from the project root directory.
 
 ```bash
 # Full pipeline: mine → generate → filter → evaluate
@@ -9,8 +9,14 @@ uv run pytifex
 # Target a specific number of disagreements
 uv run pytifex --num-examples 10
 
-# Use a more capable model
+# Use a more capable Gemini model
 uv run pytifex --model gemini-2.5-pro
+
+# Use a local model via llama-server (OpenAI-compatible API)
+uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
+
+# Use the real OpenAI API
+uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
 
 # Skip GitHub seed fetching
 uv run pytifex --no-github
@@ -23,7 +29,7 @@ uv run pytifex -v
 
 | Command | Description |
 |---------|-------------|
-| `uv run pytifex | Full pipeline (generate + evaluate) |
+| `uv run pytifex` | Full pipeline (generate + evaluate) |
 | `uv run pytifex generate` | Generate disagreements only |
 | `uv run pytifex check` | Run type checkers on existing examples |
 | `uv run pytifex eval` | Evaluate existing results |
@@ -36,10 +42,54 @@ uv run pytifex -v
 | `--batch-size N` | `15` | Examples to generate per LLM batch |
 | `--max-attempts N` | `5` | Maximum generation attempts |
 | `--max-refinements N` | `2` | Refinement attempts per non-divergent example |
-| `--model MODEL` | `gemini-2.5-flash` | Gemini model to use |
+| `--model MODEL` | `gemini-2.5-flash` | LLM model name (see [LLM Providers](#llm-providers) below) |
+| `--openai-base-url URL` | — | Base URL for an OpenAI-compatible API endpoint |
 | `--eval-method METHOD` | `comprehensive` | Evaluation method |
 | `--no-github` | — | Skip fetching seeds from GitHub issues |
 | `-v, --verbose` | — | Show all examples, not just disagreements |
+
+## LLM Providers
+
+Pytifex supports three LLM providers. The provider is selected automatically based on `--model` and `--openai-base-url`.
+
+### Google Gemini (default)
+
+Requires `GEMINI_API_KEY`.
+
+```bash
+export GEMINI_API_KEY=your_key
+uv run pytifex --model gemini-2.5-flash    # default
+uv run pytifex --model gemini-2.5-pro
+uv run pytifex --model gemini-2.5-flash-lite
+```
+
+### Cohere
+
+Requires `COHERE_API_KEY` (or `CO_API_KEY`). Model names starting with `command` are automatically routed to Cohere.
+
+```bash
+export COHERE_API_KEY=your_key
+uv run pytifex --model command-a-03-2025
+uv run pytifex --model command-r-plus-08-2024
+```
+
+### OpenAI-compatible API
+
+Activated by passing `--openai-base-url`. Works with the real OpenAI API, local models via [llama-server](https://github.com/ggml-org/llama.cpp), Ollama, vLLM, and any other server that implements the `/v1/chat/completions` endpoint.
+
+```bash
+# Real OpenAI API
+export OPENAI_API_KEY=your_key
+uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+
+# Local model via llama-server (no API key needed)
+uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
+
+# Ollama
+uv run pytifex --model llama3 --openai-base-url http://localhost:11434/v1
+```
+
+`OPENAI_API_KEY` is read from the environment when set; for local servers that don't require authentication it can be left unset.
 
 ## Example Output
 
@@ -51,11 +101,6 @@ PYTIFEX - Full Pipeline (with disagreement filtering)
 [STEP 1/2] Generating examples with disagreement filtering...
 Target: 2 disagreement examples
 Using model: gemini-2.5-flash
-
-[STEP 0] Fetching seed examples from GitHub issues...
-  Found 5 code examples from python/mypy
-  Found 5 code examples from astral-sh/ty
-Total: 10 examples from GitHub issues
 
 [Attempt 1/5] Generating batch of 15...
   Using 5 GitHub issue seeds
@@ -75,3 +120,4 @@ GENERATION COMPLETE: 2 disagreements from 19 total examples
 
 **Type checker not found** — Use `uv run` (auto-installs), or manually `pip install mypy pyrefly zuban ty`.
 
+**Local model not responding** — Check that your llama-server process is running and the port matches `--openai-base-url`. The model name passed to `--model` must match whatever name the server expects (check your server's `/v1/models` endpoint if unsure).

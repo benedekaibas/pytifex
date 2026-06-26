@@ -13,7 +13,7 @@ from typing import Optional
 
 from pydantic import HttpUrl
 
-from .agent import GetAccessToGemini, GetAccessToCohere, provider_for_model, get_api_token, Agent
+from .agent import GetAccessToGemini, GetAccessToCohere, GetAccessToOpenAI, provider_for_model, get_api_token, Agent
 from .config import BASE_GEN_DIR, CHECKERS
 from .prompts import build_seed_based_prompt, build_expert_prompt, build_refinement_prompt
 from .github_issues import fetch_random_examples, IssueExample
@@ -129,6 +129,7 @@ def generate_with_filtering(
     max_refinements: int = 2,
     verbose: bool = False,
     use_github_seeds: bool = True,
+    openai_base_url: str | None = None,
 ) -> tuple[list[Example], str]:
     """
     Generate examples until we have `target_count` actual disagreements.
@@ -141,7 +142,16 @@ def generate_with_filtering(
     Returns:
         Tuple of (list of examples with disagreements, output directory path)
     """
-    if provider_for_model(model) == "cohere":
+    provider = provider_for_model(model, openai_base_url)
+
+    if provider == "openai":
+        agent: Agent = GetAccessToOpenAI(
+            model=model,
+            api_base=openai_base_url or "https://api.openai.com/v1",
+            api_key=get_api_token("openai"),
+            timeout=320.0,
+        )
+    elif provider == "cohere":
         agent = GetAccessToCohere(
             model=model,
             token=get_api_token("cohere"),

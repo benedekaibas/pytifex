@@ -57,18 +57,23 @@ Options:
     parser.add_argument(
         "--model",
         default="gemini-2.5-flash",
-        choices=[
-            "gemini-2.5-flash-lite",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "command-a-03-2025",
-            "command-r-plus-08-2024",
-            "command-r-08-2024",
-            "command-r7b-12-2024",
-        ],
         help=(
-            "LLM model to use (default: gemini-2.5-flash). Gemini models require "
-            "GEMINI_API_KEY; Cohere 'command*' models require COHERE_API_KEY (or CO_API_KEY)."
+            "LLM model to use (default: gemini-2.5-flash). "
+            "Gemini models (gemini-*) require GEMINI_API_KEY. "
+            "Cohere models (command-*) require COHERE_API_KEY. "
+            "Any model name is accepted when --openai-base-url is set "
+            "(e.g. --model qwen3-6b --openai-base-url http://localhost:8080/v1)."
+        ),
+    )
+    parser.add_argument(
+        "--openai-base-url",
+        default=None,
+        metavar="URL",
+        help=(
+            "Base URL for an OpenAI-compatible API (e.g. http://localhost:8080/v1 "
+            "for llama-server). When set, the OpenAI provider is used regardless of "
+            "the --model name. OPENAI_API_KEY is read from the environment if present; "
+            "for local servers without auth it can be left unset."
         ),
     )
     parser.add_argument(
@@ -127,6 +132,7 @@ Options:
                 max_refinements=args.max_refinements,
                 verbose=args.verbose,
                 use_github_seeds=not args.no_github,
+                openai_base_url=args.openai_base_url,
             )
 
             if not disagreements:
@@ -161,6 +167,7 @@ Options:
                 max_refinements=args.max_refinements,
                 verbose=args.verbose,
                 use_github_seeds=not args.no_github,
+                openai_base_url=args.openai_base_url,
             )
             print(f"\n[SUCCESS] {len(disagreements)} disagreements saved to: {base_path}")
 

@@ -1,0 +1,4 @@
+# file: /home/benedek-kaibas/Documents/pytifex/src/pytifex/code_metrics.py
+# hypothesis_version: 6.151.9
+
+[0.0, '#', 'cls', 'collections.abc', 'internal_calls', 'loc', 'num_functions', 'self', 'type_density', 'type_imports', 'typing', 'typing.', 'typing_extensions']

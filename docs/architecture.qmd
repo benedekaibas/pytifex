@@ -1,7 +1,7 @@
 # Architecture
 
-Pytifex is a hybrid system that orchestrates cloud-based LLM generation with
-local type-checker execution and multi-phased evaluation. This page walks
+Pytifex is a hybrid system that orchestrates LLM-based code generation with
+local type-checker execution and objective two-tier evaluation. This page walks
 through every major subsystem so you can orient yourself in the codebase
 quickly.
 
@@ -13,25 +13,25 @@ Pytifex splits work between two execution domains:
 
 | Domain | Responsibilities |
 |--------|-----------------|
-| **Cloud (Gemini API)** | Code generation, refinement of non-divergent examples, and resolution of `UNCERTAIN` evaluation verdicts |
-| **Local machine** | GitHub issue fetching, type-checker execution via `subprocess`, AST analysis, runtime crash detection, Hypothesis testing, and static flow analysis |
+| **LLM API** | Code generation and refinement of non-divergent examples (Gemini, OpenAI, Cohere, or any OpenAI-compatible local server) |
+| **Local machine** | GitHub issue fetching, type-checker execution via `subprocess`, runtime crash detection, and Hypothesis property-based testing |
 
 > **Important:** Type-checker outputs are *real*. Every status comes from
-> actually invoking `mypy`, `pyrefly`, `ty`, and `pyright` in a subprocess —
+> actually invoking `mypy`, `pyrefly`, `ty`, and `zuban` in a subprocess —
 > never from LLM simulation.
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
-│                     Cloud (Gemini)                       │
-│  ┌─────────────┐  ┌────────────┐  ┌───────────────────┐  │
-│  │ Code Gen    │  │ Refinement │  │ Agent Resolution  │  │
-│  └─────────────┘  └────────────┘  └───────────────────┘  │
+│                       LLM API                            │
+│  ┌─────────────┐  ┌────────────┐                         │
+│  │ Code Gen    │  │ Refinement │                         │
+│  └─────────────┘  └────────────┘                         │
 └────────────────────────┬─────────────────────────────────┘
                          │ API calls
 ┌────────────────────────▼─────────────────────────────────┐
 │                   Local Machine                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ GitHub Issue │  │ Type Checker │  │  Multi-Tier    │  │
+│  │ GitHub Issue │  │ Type Checker │  │  Two-Tier      │  │
 │  │   Mining     │  │  Execution   │  │  Evaluation    │  │
 │  └──────────────┘  └──────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────┘
@@ -74,7 +74,7 @@ for issue in fetch_closed_issues(repo, label="bug"):
 
 **Modules:** `prompts.py`, `agent.py`
 
-A batch of 3–5 seed examples is shown to Gemini with a request to generate
+A batch of 3–5 seed examples is shown to the LLM with a request to generate
 *new* variations that are likely to trigger type-checker disagreements.
 
 ```python
@@ -86,8 +86,15 @@ if not seeds:
     prompt = build_expert_prompt()
 ```
 
-The `agent.py` module wraps the Gemini API client using a Pydantic model for
-structured request/response handling.
+The `agent.py` module provides three provider backends, each as a Pydantic model:
+
+| Class | Provider | Activation |
+|-------|----------|------------|
+| `GetAccessToGemini` | Google Gemini | default; model name starts with `gemini-` |
+| `GetAccessToCohere` | Cohere | model name starts with `command` |
+| `GetAccessToOpenAI` | OpenAI-compatible | `--openai-base-url` is set |
+
+`GetAccessToOpenAI` uses the standard `/v1/chat/completions` endpoint and works with the real OpenAI API, local llama-server instances, Ollama, vLLM, or any compatible server.
 
 ### Step 2 — Type Checker Execution
 
@@ -132,95 +139,44 @@ determines which checker is correct. See the next section for details.
 
 ## Evaluation System (`comprehensive_eval.py`)
 
-Evaluation proceeds phase-by-phase from highest confidence to lowest. Once a phase
-produces a confident verdict, later phases are skipped.
+Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.
 
-### Phase 0 — Oracle
+### Tier 1 — Runtime Crash Detection
 
-**Modules:** `oracle.py`, `source_analysis.py`
+Executes the source code and catches runtime exceptions that signal a genuine type error (`TypeError`, `KeyError`, `AttributeError`). The tool walks the **full traceback** including exception chains (`__cause__` / `__context__`) and isolates `try`/`except` bodies to surface swallowed errors.
 
-AST-based analysis that identifies definitive PEP violations without running
-the code.
+A crash proves a **false negative**: any checker that said "OK" is definitively wrong.
 
-- `source_analysis.py` parses the source and extracts typing-rule facts (e.g.,
-  "line 12 assigns `int` to a variable annotated `str`").
-- `oracle.py` matches these findings against each checker's diagnostics using
-  **line tolerance ±5** and **error-code matching**.
+**Confidence:** 0.95
 
-```python
-# oracle.py (simplified)
-for finding in oracle_findings:
-    for diag in checker_diagnostics:
-        if (abs(finding.line - diag.line) <= 5
-                and finding.error_code == diag.error_code):
-            matched = True
-```
-
-### Phase 1 — Runtime Crash Detection
-
-Executes the source code in a sandboxed subprocess and catches runtime
-exceptions that signal a genuine type error:
-
-- `TypeError`
-- `KeyError`
-- `AttributeError`
-
-The tool walks the **full traceback** including exception chains
-(`__cause__` / `__context__`) and also **isolates `try`/`except` bodies** to
-surface swallowed errors.
-
-**Confidence:** 0.95–1.0
-
-### Phase 2 — Hypothesis Property-Based Testing
+### Tier 2 — Hypothesis Property-Based Testing
 
 **Module:** `hypothesis_tier2.py`
 
-Extracts function signatures via AST inspection, builds
-[Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints,
-and runs `@given` tests to find runtime type violations.
+Extracts function signatures via AST inspection, builds [Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints, and runs `@given` tests with generated inputs.
 
 ```python
 # hypothesis_tier2.py (conceptual)
 sig = extract_signature(func_node)           # AST-based
 strategy = build_strategy_from_hints(sig)    # maps hints → st.*
+
+beartyped_fn = beartype(fn)                  # enforce input conformance at call time
+
 @given(strategy)
 def test(args):
-    func(*args)                              # any TypeError ⇒ real bug
+    result = beartyped_fn(*args)             # crash ⇒ false negative
+    check_type(result, return_hint)          # success ⇒ success witness
 ```
 
-Targeted tests from `targeted_tests.py` are also executed in this phase.
+**False negatives (Tier 2a):** If a call crashes despite inputs being type-conformant (confirmed by [beartype](https://beartype.readthedocs.io/)), that is a proven type bug. Any checker that said "OK" missed it.
 
-### Phase 3 — PEP Specification Compliance
+**False positives (Tier 2b):** If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed `typeguard.check_type()` — those calls are recorded as **success witnesses**. A success witness proves the code is well-typed; any checker that said "error" has a proven false positive.
 
-Matches a curated set of `PEP_RULES` (regex patterns mapped to expected
-checker behaviour) against each checker's output lines. Covered PEPs:
-
-> 484, 526, 544, 586, 589, 591, 604, 612, 613, 634, 646, 647, 655, 673,
-> 675, 681, 692, 695, 696, 698, 705, 742
-
-### Phase 4 — Static Flow Analysis
-
-**Module:** `static_tier4.py`
-
-A collection of lightweight static checks:
-
-| Check | Description |
-|-------|-------------|
-| Import availability | Verifies that imported names actually exist in their modules |
-| Variance constraints | Validates covariance / contravariance on generic parameters |
-| Type narrowing flow | Traces narrowing guards (`isinstance`, `is None`, etc.) through control flow |
-| Nominal type boundaries | Ensures structural types aren't used where nominal types are required |
-| Match exhaustiveness | Confirms `match` statements cover all variants |
-
-### Agent Resolution
-
-Any example still marked `UNCERTAIN` after all tiers is forwarded to a
-**Gemini API call** for a final LLM-based verdict.
+**Confidence:** 0.85 (false negatives) / 0.90 (false positives, beartype-enforced)
 
 ---
 
 ### Disclaimer
 
-Since Pytifex is a research tool under heavy development the architecture of the evaluation
-can change in the future.
+Since Pytifex is a research tool under active development, the architecture may evolve in future versions.
 

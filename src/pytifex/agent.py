@@ -197,6 +197,63 @@ class GetAccessToCohere(BaseModel):
             print(f"{i}. {model}")
 
 
+class GetAccessToOpenAI(BaseModel):
+    """LLM agent using the OpenAI-compatible chat completions API.
+
+    Works with the real OpenAI API as well as any local server that speaks
+    the same protocol — llama.cpp's llama-server, Ollama, vLLM, etc.
+    Point api_base at your server's base URL (e.g. 'http://localhost:8080/v1').
+    Set api_key to 'local' (or any non-empty string) for local servers that
+    don't require authentication.
+    """
+
+    model: str = Field(..., description="Model name, e.g. 'gpt-4o' or 'qwen3-6b'")
+    api_base: str = Field(
+        default="https://api.openai.com/v1",
+        description="Base URL for the OpenAI-compatible API",
+    )
+    timeout: float = Field(120.0, gt=0, description="Timeout (seconds)")
+    api_key: str = Field(default="", description="API key (can be empty for local servers)")
+
+    def communicate(self, prompt: str) -> str:
+        """Send a prompt via the chat completions endpoint and return the reply."""
+        base = self.api_base.rstrip("/")
+        url = f"{base}/chat/completions"
+
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+
+        try:
+            resp = httpx.post(url, headers=headers, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+
+            try:
+                msg = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                msg = None
+
+            if not msg:
+                raise ValueError(f"Invalid OpenAI-compatible response: {data}")
+            return str(msg)
+
+        except httpx.HTTPStatusError as e:
+            raise ValueError(
+                f"HTTP {e.response.status_code} from {e.request.url}: {e.response.text}"
+            ) from e
+        except httpx.HTTPError as e:
+            raise ValueError(f"Network error contacting {self.api_base}: {e}") from e
+
+    def predict(self, prompt: str) -> str:
+        return self.communicate(prompt)
+
+
 # Provider selection helpers
 
 
@@ -204,11 +261,13 @@ GEMINI_MODELS = GetAccessToGemini.model_fields["AVAILABLE_MODELS"].default
 COHERE_MODELS = GetAccessToCohere.model_fields["AVAILABLE_MODELS"].default
 
 # Agent type for any supported provider.
-Agent = GetAccessToGemini | GetAccessToCohere
+Agent = GetAccessToGemini | GetAccessToCohere | GetAccessToOpenAI
 
 
-def provider_for_model(model: str) -> str:
-    """Return the provider ('gemini' or 'cohere') a model belongs to."""
+def provider_for_model(model: str, openai_base_url: str | None = None) -> str:
+    """Return the provider ('gemini', 'cohere', or 'openai') for a model."""
+    if openai_base_url is not None:
+        return "openai"
     if model in COHERE_MODELS or model.startswith("command"):
         return "cohere"
     return "gemini"
@@ -223,6 +282,10 @@ def get_api_token(provider: str) -> str:
                 "Please set COHERE_API_KEY (or CO_API_KEY) environment variable"
             )
         return token
+
+    if provider == "openai":
+        # Optional for local servers; fall back to empty string if not set.
+        return os.environ.get("OPENAI_API_KEY", "")
 
     token = os.environ.get("GEMINI_API_KEY")
     if not token:
