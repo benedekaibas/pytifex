@@ -109,7 +109,7 @@ Options:
         "--eval-method",
         choices=["comprehensive", "multi_step", "consensus", "runtime", "all"],
         default="comprehensive",
-        help="Evaluation method (default: comprehensive = 4-tier runtime/mutation/PEP evaluation)",
+        help="Evaluation method (default: comprehensive = two-phase runtime evaluation)",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="Verbose output"

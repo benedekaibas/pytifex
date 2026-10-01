@@ -14,8 +14,8 @@ Architecture:
 6. Check return types (Self substitution, typeguard enforcement).
 
 Usage:
-    from hypothesis_tier2 import run_hypothesis_tier2
-    bugs = run_hypothesis_tier2(source_code, checker_outputs=outputs)
+    from hypothesis_phase2 import run_hypothesis_phase2
+    bugs = run_hypothesis_phase2(source_code, checker_outputs=outputs)
 """
 
 import ast
@@ -80,7 +80,7 @@ class SuccessWitness:
     """
     call_text: str
     calls_succeeded: int
-    source: str = "tier2_witness"
+    source: str = "phase2_witness"
     beartype_enforced: bool = False
 
 
@@ -320,7 +320,7 @@ def _extract_definitions(tree: ast.Module) -> list[InvocationPlan]:
 # RUNTIME RESOLUTION (execute source code, inspect signatures & hints)
 
 def _build_source_env(source_code: str) -> Optional[dict[str, Any]]:
-    env: dict[str, Any] = {"__name__": "__hypothesis_tier2__", "__builtins__": __builtins__}
+    env: dict[str, Any] = {"__name__": "__hypothesis_phase2__", "__builtins__": __builtins__}
     try:
         with contextlib.redirect_stdout(io.StringIO()), \
              contextlib.redirect_stderr(io.StringIO()):
@@ -1033,7 +1033,7 @@ def _test_constructor(
             line=plan.line,
             bug_type=ex["type"],
             message=f"{plan.call_text} -> {ex['error']}",
-            source="hypothesis_tier2",
+            source="hypothesis_phase2",
             confidence=0.65 if plan.used_fallback_strategy else 0.95,
             details={
                 "call_text": plan.call_text,
@@ -1127,7 +1127,7 @@ def _test_function(
             line=plan.line,
             bug_type=ex["type"],
             message=f"{plan.call_text} -> {ex['error']}",
-            source="hypothesis_tier2",
+            source="hypothesis_phase2",
             confidence=0.65 if plan.used_fallback_strategy else 0.95,
             details={
                 "call_text": plan.call_text,
@@ -1143,7 +1143,7 @@ def _test_function(
             line=plan.line,
             bug_type=ex["type"],
             message=f"{plan.call_text} -> {ex['error']}",
-            source="hypothesis_tier2",
+            source="hypothesis_phase2",
             confidence=0.60 if plan.used_fallback_strategy else 0.85,
             details={
                 "call_text": plan.call_text,
@@ -1270,7 +1270,7 @@ def _test_method(
             line=plan.line,
             bug_type=ex["type"],
             message=f"{plan.call_text} -> {ex['error']}",
-            source="hypothesis_tier2",
+            source="hypothesis_phase2",
             confidence=0.65 if plan.used_fallback_strategy else 0.95,
             details={
                 "call_text": plan.call_text,
@@ -1288,7 +1288,7 @@ def _test_method(
             line=plan.line,
             bug_type=ex["type"],
             message=f"{plan.call_text} -> {ex['error']}",
-            source="hypothesis_tier2",
+            source="hypothesis_phase2",
             confidence=0.60 if plan.used_fallback_strategy else 0.90,
             details={
                 "call_text": plan.call_text,
@@ -1369,7 +1369,7 @@ def _save_artifacts(
 
     summary_lines = [
         '"""',
-        "Hypothesis Tier 2 — Signature-Driven Property Test Summary",
+        "Hypothesis Phase 2 — Signature-Driven Property Test Summary",
         "",
         f"Definitions found: {len(plans)}",
         f"Testable (strategies built): {len(tested_plans)}",
@@ -1405,10 +1405,10 @@ def _save_artifacts(
             summary_lines.append(f"  {i}: L{bug.line} [{bug.bug_type}] {bug.message}")
             summary_lines.append(f"      test_cases_run={cases}, failing_args={args}")
     else:
-        summary_lines.append("No bugs found by Tier 2.")
+        summary_lines.append("No bugs found by Phase 2.")
     summary_lines.append('"""')
 
-    summary_path = os.path.join(output_dir, "tier2_summary.py")
+    summary_path = os.path.join(output_dir, "phase2_summary.py")
     try:
         with open(summary_path, "w") as f:
             f.write("\n".join(summary_lines) + "\n")
@@ -1431,12 +1431,12 @@ def _save_plan_test_file(
 ) -> None:
     safe_name = re.sub(r"[^\w]", "_", plan.call_text)[:50]
     status = "FAIL" if bugs else "PASS"
-    filename = f"tier2_{index}_{status}_{safe_name}.py"
+    filename = f"phase2_{index}_{status}_{safe_name}.py"
     filepath = os.path.join(output_dir, filename)
 
     lines = [
         '"""',
-        "Hypothesis Tier 2 — Generated Property Test",
+        "Hypothesis Phase 2 — Generated Property Test",
         "",
         f"Target: {plan.call_text}",
         f"Kind: {plan.kind}",
@@ -1466,7 +1466,7 @@ def _save_plan_test_file(
     lines.append("")
     lines.append("")
 
-    lines.append("# --- Tier 2 property test ---")
+    lines.append("# --- Phase 2 property test ---")
     lines.append("")
 
     if plan.kind == CallKind.CONSTRUCTOR:
@@ -1626,7 +1626,7 @@ def extract_type_annotations(source_code: str) -> list[TypeAnnotation]:
 
 # MAIN ENTRY POINT
 
-def run_hypothesis_tier2(
+def run_hypothesis_phase2(
     source_code: str,
     annotations: list[TypeAnnotation] | None = None,
     checker_outputs: dict[str, str] | None = None,

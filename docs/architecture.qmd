@@ -1,7 +1,7 @@
 # Architecture
 
 Pytifex is a hybrid system that orchestrates LLM-based code generation with
-local type-checker execution and objective two-tier evaluation. This page walks
+local type-checker execution and objective two-phase evaluation. This page walks
 through every major subsystem so you can orient yourself in the codebase
 quickly.
 
@@ -31,7 +31,7 @@ Pytifex splits work between two execution domains:
 ┌────────────────────────▼─────────────────────────────────┐
 │                   Local Machine                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ GitHub Issue │  │ Type Checker │  │  Two-Tier      │  │
+│  │ GitHub Issue │  │ Type Checker │  │  Two-Phase     │  │
 │  │   Mining     │  │  Execution   │  │  Evaluation    │  │
 │  └──────────────┘  └──────────────┘  └────────────────┘  │
 └──────────────────────────────────────────────────────────┘
@@ -132,7 +132,7 @@ for attempt in range(max_refinements):
 
 **Module:** `comprehensive_eval.py`
 
-All divergent examples are passed through a multi-tiered evaluation system that
+All divergent examples are passed through a multi-phase evaluation system that
 determines which checker is correct. See the next section for details.
 
 ---
@@ -141,7 +141,7 @@ determines which checker is correct. See the next section for details.
 
 Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.
 
-### Tier 1 — Runtime Crash Detection
+### Phase 1 — Runtime Crash Detection
 
 Executes the source code and catches runtime exceptions that signal a genuine type error (`TypeError`, `KeyError`, `AttributeError`). The tool walks the **full traceback** including exception chains (`__cause__` / `__context__`) and isolates `try`/`except` bodies to surface swallowed errors.
 
@@ -149,14 +149,14 @@ A crash proves a **false negative**: any checker that said "OK" is definitively 
 
 **Confidence:** 0.95
 
-### Tier 2 — Hypothesis Property-Based Testing
+### Phase 2 — Hypothesis Property-Based Testing
 
-**Module:** `hypothesis_tier2.py`
+**Module:** `hypothesis_phase2.py`
 
 Extracts function signatures via AST inspection, builds [Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints, and runs `@given` tests with generated inputs.
 
 ```python
-# hypothesis_tier2.py (conceptual)
+# hypothesis_phase2.py (conceptual)
 sig = extract_signature(func_node)           # AST-based
 strategy = build_strategy_from_hints(sig)    # maps hints → st.*
 
@@ -168,9 +168,9 @@ def test(args):
     check_type(result, return_hint)          # success ⇒ success witness
 ```
 
-**False negatives (Tier 2a):** If a call crashes despite inputs being type-conformant (confirmed by [beartype](https://beartype.readthedocs.io/)), that is a proven type bug. Any checker that said "OK" missed it.
+**False negatives (Phase 2a):** If a call crashes despite inputs being type-conformant (confirmed by [beartype](https://beartype.readthedocs.io/)), that is a proven type bug. Any checker that said "OK" missed it.
 
-**False positives (Tier 2b):** If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed `typeguard.check_type()` — those calls are recorded as **success witnesses**. A success witness proves the code is well-typed; any checker that said "error" has a proven false positive.
+**False positives (Phase 2b):** If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed `typeguard.check_type()` — those calls are recorded as **success witnesses**. A success witness proves the code is well-typed; any checker that said "error" has a proven false positive.
 
 **Confidence:** 0.85 (false negatives) / 0.90 (false positives, beartype-enforced)
 

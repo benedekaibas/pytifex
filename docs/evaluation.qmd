@@ -1,6 +1,6 @@
 # Evaluation System
 
-Once Pytifex finds a disagreement — code where type checkers produce different verdicts — it needs to determine **which checker is right**. This page explains the two-tier objective evaluation system that establishes ground truth.
+Once Pytifex finds a disagreement — code where type checkers produce different verdicts — it needs to determine **which checker is right**. This page explains the two-phase objective evaluation system that establishes ground truth.
 
 ---
 
@@ -8,30 +8,30 @@ Once Pytifex finds a disagreement — code where type checkers produce different
 
 The evaluation system is built on a single principle: **only runtime evidence counts.**
 
-This gives each tier a precise, objective role:
+This gives each phase a precise, objective role:
 
-- **Tier 1** proves *false negatives* — a runtime crash is a concrete witness that a type error exists. Any checker that said "OK" is definitively wrong.
-- **Tier 2** proves *false negatives and false positives* — Hypothesis generates type-conformant inputs (verified at the call boundary by [beartype](https://beartype.readthedocs.io/)) and runs the code. A crash proves a false negative; successful execution proves a false positive.
+- **Phase 1** proves *false negatives* — a runtime crash is a concrete witness that a type error exists. Any checker that said "OK" is definitively wrong.
+- **Phase 2** proves *false negatives and false positives* — Hypothesis generates type-conformant inputs (verified at the call boundary by [beartype](https://beartype.readthedocs.io/)) and runs the code. A crash proves a false negative; successful execution proves a false positive.
 
 There are no heuristics, PEP pattern matching, or LLM judgements in the verdict path. A verdict is only issued when there is concrete runtime proof.
 
 ---
 
-## Evaluation Tiers
+## Evaluation Phases
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│  Tier 1: Runtime Crash Detection                             │
+│  Phase 1: Runtime Crash Detection                             │
 │  Evidence: code crashes with a TypeError/AttributeError      │
 │  Proves: false negatives (checker said "ok", code is broken) │
 │  Confidence: 0.95                                            │
 ├──────────────────────────────────────────────────────────────┤
-│  Tier 2a: Hypothesis Crashes                                 │
+│  Phase 2a: Hypothesis Crashes                                 │
 │  Evidence: crash found with beartype-verified typed inputs   │
 │  Proves: false negatives (via fuzzing)                       │
 │  Confidence: 0.85                                            │
 ├──────────────────────────────────────────────────────────────┤
-│  Tier 2b: Success Witnesses                                  │
+│  Phase 2b: Success Witnesses                                  │
 │  Evidence: code ran correctly with beartype-verified inputs  │
 │  Proves: false positives (checker said "error", code is fine)│
 │  Confidence: 0.90                                            │
@@ -42,7 +42,7 @@ There are no heuristics, PEP pattern matching, or LLM judgements in the verdict 
 
 ---
 
-## Tier 1 — Runtime Crash Detection
+## Phase 1 — Runtime Crash Detection
 
 Executes the generated code directly and catches type-related runtime exceptions:
 
@@ -50,11 +50,11 @@ Executes the generated code directly and catches type-related runtime exceptions
 TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError)
 ```
 
-If the code crashes, any checker that reported "OK" has a proven **false negative**. If the code ran fine, Tier 1 produces no verdict — the result falls through to Tier 2.
+If the code crashes, any checker that reported "OK" has a proven **false negative**. If the code ran fine, Phase 1 produces no verdict — the result falls through to Phase 2.
 
 ### Full Traceback Walking
 
-Tier 1 doesn't just catch the top-level exception — it walks the **entire traceback** and inspects **exception chains** (`__cause__` / `__context__`):
+Phase 1 doesn't just catch the top-level exception — it walks the **entire traceback** and inspects **exception chains** (`__cause__` / `__context__`):
 
 ```python
 def _collect_chained_exceptions(exc):
@@ -69,13 +69,13 @@ def _collect_chained_exceptions(exc):
 
 ### Isolating Swallowed Errors
 
-Code often contains `try`/`except` blocks that catch and hide type errors. Tier 1 uses AST analysis to find `try` bodies and re-executes them in isolation to surface errors that would otherwise be swallowed.
+Code often contains `try`/`except` blocks that catch and hide type errors. Phase 1 uses AST analysis to find `try` bodies and re-executes them in isolation to surface errors that would otherwise be swallowed.
 
 ---
 
-## Tier 2 — Hypothesis Property-Based Testing
+## Phase 2 — Hypothesis Property-Based Testing
 
-Uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs that match the declared type annotations, then calls the actual code with those inputs. Both false negatives and false positives can be proven at this tier.
+Uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs that match the declared type annotations, then calls the actual code with those inputs. Both false negatives and false positives can be proven at this phase.
 
 ### How It Works
 
@@ -91,11 +91,11 @@ Uses [Hypothesis](https://hypothesis.readthedocs.io/) to generate random inputs 
 5. **Enforce input conformance with beartype** — Before calling the function, it is wrapped with `@beartype`. If a generated input turns out not to conform to the declared type (rare with well-built strategies, but possible for complex types), beartype raises `BeartypeCallHintParamViolation` and that call is skipped rather than counted.
 6. **Run `@given` tests** — Call the function with confirmed type-conformant inputs and observe the outcome.
 
-### Tier 2a — False Negative Detection
+### Phase 2a — False Negative Detection
 
 If any call raises a `TypeError`, `KeyError`, or `AttributeError`, that is a confirmed type bug. A checker that said "OK" on this code has a proven false negative.
 
-### Tier 2b — False Positive Detection (Success Witnesses)
+### Phase 2b — False Positive Detection (Success Witnesses)
 
 If calls succeed — beartype confirmed the inputs were type-conformant, execution completed without error, and the return value passed a `typeguard.check_type()` validation — those calls are recorded as **success witnesses**.
 
@@ -111,7 +111,7 @@ class SuccessWitness:
 
 ### Verdict Logic
 
-| Tier 1 result | Tier 2 result | Checker said "ok" | Checker said "error" |
+| Phase 1 result | Phase 2 result | Checker said "ok" | Checker said "error" |
 |---|---|---|---|
 | crash | — | **INCORRECT** (false negative) | CORRECT |
 | no crash | Hypothesis crash | **INCORRECT** (false negative) | CORRECT |
@@ -136,7 +136,7 @@ Results are saved to `evaluation_comprehensive.json`:
 
 ```json
 {
-  "method": "two_tier_objective",
+  "method": "two_phase_objective",
   "summary": {
     "mypy":    {"correct": 8, "incorrect": 4, "uncertain": 3},
     "pyrefly": {"correct": 6, "incorrect": 5, "uncertain": 4}
@@ -144,15 +144,15 @@ Results are saved to `evaluation_comprehensive.json`:
   "results": [
     {
       "filename": "protocol-defaults-1.py",
-      "tier1_bugs": [],
-      "tier2_bugs": [],
-      "tier2_witnesses": [
+      "phase1_bugs": [],
+      "phase2_bugs": [],
+      "phase2_witnesses": [
         {"call": "render(...)", "successes": 30, "beartype_enforced": true}
       ],
       "verdicts": {
-        "mypy":    {"verdict": "INCORRECT", "tier": 2, "confidence": 0.9,
+        "mypy":    {"verdict": "INCORRECT", "phase": 2, "confidence": 0.9,
                    "reason": "False positive: reported error on code that executed successfully with type-conformant inputs (30 successful call(s), beartype-enforced)"},
-        "pyrefly": {"verdict": "CORRECT",   "tier": 2, "confidence": 0.9,
+        "pyrefly": {"verdict": "CORRECT",   "phase": 2, "confidence": 0.9,
                    "reason": "Correctly accepted code that executed successfully with type-conformant inputs (30 successful call(s), beartype-enforced)"}
       }
     }
@@ -166,4 +166,4 @@ Results are saved to `evaluation_comprehensive.json`:
 |---------|---------|
 | `CORRECT` | Checker accurately identified all issues (or correctly reported no issues) |
 | `INCORRECT` | Checker missed a real bug (false negative) or flagged correct code (false positive) |
-| `UNCERTAIN` | No runtime evidence from either tier — neither crash nor successful witness found |
+| `UNCERTAIN` | No runtime evidence from either phase — neither crash nor successful witness found |

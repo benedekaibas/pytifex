@@ -108,14 +108,14 @@ uv run pytifex --model command-a-03-2025
 
 ## Evaluation
 
-Pytifex uses a multi-phase evaluation oracle to determine which checker is correct:
+Pytifex uses a two-phase runtime oracle to determine which checker is correct:
 
-| Phase | Method | Confidence |
-|-------|--------|------------|
-| 0 | AST-based PEP specification oracle | 0.85–0.95 |
-| 1 | Runtime crash detection | 0.95–1.0 |
-| 2 | Hypothesis property-based testing | 0.85 |
-| 3 | PEP specification compliance matching | 0.80 |
-| 4 | Static flow analysis | 0.80 |
+| Phase | Method | Proves | Confidence |
+|-------|--------|--------|------------|
+| 1 | Runtime crash detection | False negatives | 0.95 |
+| 2a | Hypothesis and targeted tests crash on type-conformant inputs | False negatives | 0.85–0.90 |
+| 2b | Success witnesses: code runs with beartype-verified inputs and a valid return type | False positives | 0.90 |
+
+Cases with no runtime evidence are marked `UNCERTAIN`.
 
 **Key insight:** Runtime behavior is the ultimate ground truth. If code raises `TypeError` at runtime, any checker that reported "OK" is definitively wrong.

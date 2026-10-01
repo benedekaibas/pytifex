@@ -66,7 +66,7 @@ uv run pytifex --model command-a-03-2025
 2. **Code generation** — Seeds are sent to the LLM, which generates new code variations targeting similar edge cases
 3. **Type checking** — Each generated example is run through mypy, pyrefly, zuban, and ty
 4. **Filtering** — Only examples where checkers *disagree* are kept
-5. **Evaluation** — A two-tier objective system determines which checker is correct using runtime evidence only
+5. **Evaluation** — A two-phase objective system determines which checker is correct using runtime evidence only
 
 Output is saved to `generated_examples/<timestamp>/`.
 
@@ -88,5 +88,5 @@ uv run pytifex --no-github
 
 - **[Installation](installation.qmd)** — Detailed setup including manual installation
 - **[Usage](usage.qmd)** — Full CLI reference, commands, and options
-- **[Evaluation](evaluation.qmd)** — Understand how the two-tier objective evaluation works
+- **[Evaluation](evaluation.qmd)** — Understand how the two-phase objective evaluation works
 - **[Architecture](architecture.qmd)** — Understand how the pipeline works under the hood

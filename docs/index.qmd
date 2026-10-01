@@ -4,7 +4,7 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE)
 
-Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-tiered evaluation.
+Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-phase evaluation.
 
 ## How It Works
 
@@ -45,7 +45,7 @@ uv run pytifex
 - **[Getting Started](getting-started.qmd)** — Installation, setup, and first run
 - **[Architecture](architecture.qmd)** — System design, pipeline flow, and file structure
 - **[Bug Mining & Mutation](bug-mining.qmd)** — How seeds are mined from GitHub and mutated into test cases
-- **[Evaluation System](evaluation.qmd)** — Multi-tiered evaluation: runtime, Hypothesis, PEP specs, static analysis
+- **[Evaluation System](evaluation.qmd)** — Multi-phaseed evaluation: runtime, Hypothesis, PEP specs, static analysis
 - **[Type Checkers](checkers.qmd)** — How checkers are invoked, output parsed, and how to add new ones
 - **[Divergence Patterns](patterns.qmd)** — The 10 built-in edge-case patterns and how to add more
 

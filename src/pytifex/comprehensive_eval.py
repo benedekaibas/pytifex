@@ -8,26 +8,20 @@
 # ///
 
 """
-Comprehensive Tiered Evaluation System for Type Checker Correctness (V2).
-This module implements a multi-tiered evaluation strategy:
+Two-Phase Objective Evaluation System for Type Checker Correctness.
 
-Phase 1: Runtime Crash Detection (~10% of cases)
+Phase 1: Runtime Crash Detection
     - Execute code and catch type-related exceptions
-    - Highest confidence - proves actual bugs exist
+    - Re-run try bodies in isolation to surface swallowed errors
+    - Proves false negatives
 
-Phase 2: Hypothesis Property-Based Testing (~40% of cases)
+Phase 2: Hypothesis Property-Based Testing
     - AST-driven call-site extraction and signature introspection
-    - Hypothesis-generated inputs exercising real code paths
-    - Proves type constraints matter in practice
+    - Hypothesis-generated inputs verified by beartype plus targeted tests
+    - Crashes prove false negatives (2a)
+    - Successful runs with a valid return type prove false positives (2b)
 
-Phase 3: PEP Specification Compliance (~40% of cases)
-    - Check against official Python typing PEPs
-    - Pattern-based rules for common disagreement types
-    - Authoritative ground truth
-
-Phase 4: Design Differences (~10% of cases)
-    - Accept that some disagreements are philosophical
-    - Document as legitimate design choices
+Checkers with no runtime evidence either way are marked UNCERTAIN.
 """
 
 import ast
@@ -65,7 +59,7 @@ class TypeBug:
     line: int
     bug_type: str
     message: str
-    source: str  # "tier1_runtime", "tier2_mutation", "tier3_pep"
+    source: str  # "phase1_runtime", "phase2_mutation", "phase3_pep"
     confidence: float
     details: dict = field(default_factory=dict)
 
@@ -74,9 +68,9 @@ class TypeBug:
 class EvaluationResult:
     """Complete evaluation result for a file."""
     filename: str
-    tier1_bugs: list[TypeBug]
-    tier2_bugs: list[TypeBug]
-    tier2_witnesses: list
+    phase1_bugs: list[TypeBug]
+    phase2_bugs: list[TypeBug]
+    phase2_witnesses: list
     checker_verdicts: dict[str, dict]
 
 
@@ -84,14 +78,14 @@ class DebugArtifactCollector:
     """Collects ephemeral test snippets generated during evaluation for later inspection."""
 
     def __init__(self) -> None:
-        self.tier1_snippets: list[dict[str, str]] = []
-        self.tier2_snippets: list[dict[str, str]] = []
+        self.phase1_snippets: list[dict[str, str]] = []
+        self.phase2_snippets: list[dict[str, str]] = []
 
-    def add_tier1(self, label: str, code: str) -> None:
-        self.tier1_snippets.append({"label": label, "code": code})
+    def add_phase1(self, label: str, code: str) -> None:
+        self.phase1_snippets.append({"label": label, "code": code})
 
-    def add_tier2(self, annotation: str, violation: str, code: str) -> None:
-        self.tier2_snippets.append({
+    def add_phase2(self, annotation: str, violation: str, code: str) -> None:
+        self.phase2_snippets.append({
             "annotation": annotation,
             "violation": violation,
             "code": code,
@@ -102,14 +96,14 @@ class DebugArtifactCollector:
         base = os.path.join(directory, stem)
         os.makedirs(base, exist_ok=True)
 
-        for i, s in enumerate(self.tier1_snippets):
-            path = os.path.join(base, f"tier1_{i}_{s['label']}.py")
+        for i, s in enumerate(self.phase1_snippets):
+            path = os.path.join(base, f"phase1_{i}_{s['label']}.py")
             with open(path, "w") as f:
                 f.write(s["code"])
 
-        for i, s in enumerate(self.tier2_snippets):
+        for i, s in enumerate(self.phase2_snippets):
             safe_ann = re.sub(r"[^\w]", "_", s["annotation"])[:40]
-            path = os.path.join(base, f"tier2_{i}_{safe_ann}.py")
+            path = os.path.join(base, f"phase2_{i}_{safe_ann}.py")
             with open(path, "w") as f:
                 f.write(f"# annotation: {s['annotation']}\n")
                 f.write(f"# violation:  {s['violation']}\n\n")
@@ -117,13 +111,13 @@ class DebugArtifactCollector:
 
 
 # =============================================================================
-# TIER 1: RUNTIME CRASH DETECTION
+# PHASE 1: RUNTIME CRASH DETECTION
 # =============================================================================
 
 TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError)
 
 
-def _extract_all_source_lines(tb_list: list, source_tag: str = "<tier1>") -> list[int]:
+def _extract_all_source_lines(tb_list: list, source_tag: str = "<phase1>") -> list[int]:
     """Extract all line numbers from traceback frames that belong to our source."""
     return [frame.lineno for frame in tb_list if frame.filename == source_tag]
 
@@ -166,7 +160,7 @@ def _extract_try_bodies(source_code: str) -> list[tuple[int, int, str]]:
     return bodies
 
 
-def _run_isolated_code(code: str, source_tag: str = "<tier1_isolated>") -> list[TypeBug]:
+def _run_isolated_code(code: str, source_tag: str = "<phase1_isolated>") -> list[TypeBug]:
     """Execute code and collect type-related bugs with full traceback info."""
     bugs: list[TypeBug] = []
     try:
@@ -220,7 +214,7 @@ def _bugs_from_exception(exc: BaseException, source_tag: str) -> list[TypeBug]:
             line=primary_line,
             bug_type=bug_type,
             message=message,
-            source="tier1_runtime",
+            source="phase1_runtime",
             confidence=1.0,
             details={"all_traceback_lines": list(dict.fromkeys(all_chain_lines))},
         ))
@@ -228,7 +222,7 @@ def _bugs_from_exception(exc: BaseException, source_tag: str) -> list[TypeBug]:
     return bugs
 
 
-def run_tier1(
+def run_phase1(
     source_code: str,
     debug: DebugArtifactCollector | None = None,
 ) -> list[TypeBug]:
@@ -238,17 +232,17 @@ def run_tier1(
     - Inspects exception chains (__cause__ / __context__)
     - Isolates try/except bodies to surface swallowed type errors
     """
-    bugs = _run_isolated_code(source_code, "<tier1>")
+    bugs = _run_isolated_code(source_code, "<phase1>")
     if debug:
-        debug.add_tier1("full_source", source_code)
+        debug.add_phase1("full_source", source_code)
 
     try_bodies = _extract_try_bodies(source_code)
     seen_lines = {b.line for b in bugs}
 
     for idx, (start_line, end_line, body_source) in enumerate(try_bodies):
         if debug:
-            debug.add_tier1(f"try_body_{idx}_L{start_line}", body_source)
-        isolated_bugs = _run_isolated_code(body_source, "<tier1_isolated>")
+            debug.add_phase1(f"try_body_{idx}_L{start_line}", body_source)
+        isolated_bugs = _run_isolated_code(body_source, "<phase1_isolated>")
         for bug in isolated_bugs:
             adjusted_line = bug.line + start_line - 1
             if adjusted_line not in seen_lines:
@@ -263,495 +257,6 @@ def run_tier1(
 
     return bugs
 
-
-
-# TIER 3: PEP SPECIFICATION COMPLIANCE
-
-@dataclass
-class PEPRule:
-    """A rule derived from Python typing PEPs."""
-    pep_number: int
-    pattern: str  # regex pattern to match in checker output or code
-    rule_description: str
-    correct_behavior: str  # "error" or "ok"
-
-
-PEP_RULES = [
-    # ── PEP 484: Type Hints (core) ──────────────────────────────────────
-    PEPRule(
-        pep_number=484,
-        pattern=r"(?:override|LSP|Liskov|incompatible).*method",
-        rule_description="Method override must be compatible (PEP 484 LSP)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"NewType.*float",
-        rule_description="float is a valid base for NewType (PEP 484)",
-        correct_behavior="ok",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"not assignable to.*NewType|NewType.*not assignable",
-        rule_description="NewType creates a distinct nominal type (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"invalid.argument.type|incompatible type.*expected",
-        rule_description="Argument type must match parameter annotation (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"invalid.assignment|not assignable to declared type",
-        rule_description="Assigned value must be compatible with declared type (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"return type.*incompatible|incompatible return",
-        rule_description="Return value must match return type annotation (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"not subscriptable|not (?:a )?generic|cannot subscript",
-        rule_description="Only generic classes can be subscripted (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"type application.*only supported for generic",
-        rule_description="Type application is only supported for generic classes (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"has no attribute|unresolved.reference",
-        rule_description="Attribute access must resolve on the declared type (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"(?:Missing return statement|Function.*implicitly return.*None|bad-return|invalid-return-type)",
-        rule_description="Non-Optional return type must return a value on all code paths (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=484,
-        pattern=r"[Ii]ncompatible types? in assignment",
-        rule_description="Assigned value must be compatible with the annotated variable type (PEP 484)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=544,
-        pattern=r"[Ii]nvariant type variable.*protocol.*covariant|protocol.*[Ii]nvariant.*covariant",
-        rule_description="Protocol type parameters must use appropriate variance (PEP 544)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 526: Variable Annotations ───────────────────────────────────
-    PEPRule(
-        pep_number=526,
-        pattern=r"ClassVar.*(?:instance|self)|instance.*ClassVar",
-        rule_description="ClassVar cannot be set on instances (PEP 526)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 544: Protocols ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=544,
-        pattern=r"[Pp]rotocol.*cannot be instantiated|instantiate.*[Pp]rotocol",
-        rule_description="Protocol classes cannot be instantiated directly (PEP 544)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=544,
-        pattern=r"does not (?:implement|satisfy|conform).*[Pp]rotocol",
-        rule_description="Type must implement all Protocol members (PEP 544)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=544,
-        pattern=r"incompatible.*[Pp]rotocol|not compatible with.*[Pp]rotocol",
-        rule_description="Type is incompatible with Protocol (PEP 544)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 586: Literal Types ──────────────────────────────────────────
-    PEPRule(
-        pep_number=586,
-        pattern=r"str.*(?:to|→|->).*Literal\[",
-        rule_description="str is not assignable to Literal[...] (PEP 586)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=586,
-        pattern=r"Literal\[.*\].*(?:to|→|->).*str",
-        rule_description="Literal[...] is assignable to str (PEP 586)",
-        correct_behavior="ok",
-    ),
-    PEPRule(
-        pep_number=586,
-        pattern=r"invalid.*Literal|Literal.*invalid",
-        rule_description="Literal parameters must be valid literal values (PEP 586)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 589: TypedDict ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=589,
-        pattern=r"[Mm]issing.*(?:required|key).*TypedDict",
-        rule_description="Missing required key in TypedDict (PEP 589)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=589,
-        pattern=r"TypedDict.*[Mm]issing.*key",
-        rule_description="Missing required key in TypedDict (PEP 589)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=589,
-        pattern=r"TypedDict.*(?:extra|unexpected).*key|(?:extra|unexpected).*key.*TypedDict",
-        rule_description="Extra keys not allowed in TypedDict (PEP 589)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=589,
-        pattern=r"[Oo]verwriting TypedDict field",
-        rule_description="Overwriting TypedDict field while extending (PEP 589)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=589,
-        pattern=r"does not have key|not (?:a )?valid.*key.*TypedDict|bad.typed.dict.key",
-        rule_description="Accessing invalid key on TypedDict (PEP 589)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 591: Final ──────────────────────────────────────────────────
-    PEPRule(
-        pep_number=591,
-        pattern=r"[Cc]annot (?:assign|override|overwrite).*Final|Final.*reassign",
-        rule_description="Final variables cannot be reassigned (PEP 591)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=591,
-        pattern=r"[Cc]annot override.*[Ff]inal.*method|[Ff]inal.*method.*override",
-        rule_description="Final methods cannot be overridden (PEP 591)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=591,
-        pattern=r"[Cc]annot (?:subclass|inherit|extend).*[Ff]inal",
-        rule_description="Final classes cannot be subclassed (PEP 591)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 604: X | Y Union Syntax ────────────────────────────────────
-    PEPRule(
-        pep_number=604,
-        pattern=r"unsupported operand.*\|.*type",
-        rule_description="X | Y union syntax requires Python 3.10+ (PEP 604)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 612: ParamSpec ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=612,
-        pattern=r"ParamSpec.*(?:invalid|incorrect|misuse)|invalid.*ParamSpec",
-        rule_description="ParamSpec must be used correctly (PEP 612)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=612,
-        pattern=r"Concatenate.*(?:invalid|incorrect)|invalid.*Concatenate",
-        rule_description="Concatenate must be used with ParamSpec (PEP 612)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 613: Explicit Type Aliases ──────────────────────────────────
-    PEPRule(
-        pep_number=613,
-        pattern=r"TypeAlias.*(?:invalid|incorrect)|invalid.*TypeAlias",
-        rule_description="TypeAlias must be a valid type expression (PEP 613)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 634: Structural Pattern Matching ────────────────────────────
-    PEPRule(
-        pep_number=634,
-        pattern=r"[Ss]tatement is unreachable|unreachable code",
-        rule_description="Unreachable code after exhaustive match (PEP 634)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=634,
-        pattern=r"__match_args__|bad.match|cannot match positional",
-        rule_description="Class must define __match_args__ for positional patterns (PEP 634)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 646: Variadic Generics ──────────────────────────────────────
-    PEPRule(
-        pep_number=646,
-        pattern=r"TypeVarTuple.*(?:invalid|incorrect)|invalid.*TypeVarTuple",
-        rule_description="TypeVarTuple must be used correctly (PEP 646)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=646,
-        pattern=r"[Uu]npack.*(?:invalid|only|must)|invalid.*[Uu]npack",
-        rule_description="Unpack must be used with TypeVarTuple (PEP 646)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 647: TypeGuard ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=647,
-        pattern=r"TypeGuard.*narrow",
-        rule_description="TypeGuard narrows to specified type (PEP 647)",
-        correct_behavior="ok",
-    ),
-    PEPRule(
-        pep_number=647,
-        pattern=r"TypeGuard.*positional argument|[Tt]ype guard.*positional argument",
-        rule_description="TypeGuard function must accept at least one positional argument (PEP 647)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=647,
-        pattern=r"TypeGuard.*[Bb]ool|TypeGuard.*return",
-        rule_description="TypeGuard function must return bool (PEP 647)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 655: Required / NotRequired ─────────────────────────────────
-    PEPRule(
-        pep_number=655,
-        pattern=r"Required\[.*\].*missing|missing.*Required",
-        rule_description="Required[] TypedDict keys must be present (PEP 655)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=655,
-        pattern=r"NotRequired.*(?:invalid|outside TypedDict)|invalid.*NotRequired",
-        rule_description="NotRequired can only be used in TypedDict (PEP 655)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 673: Self Type ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=673,
-        pattern=r"Self.*outside.*class|Self.*(?:invalid|not allowed).*(?:function|module)",
-        rule_description="Self can only be used inside class methods (PEP 673)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 675: LiteralString ──────────────────────────────────────────
-    PEPRule(
-        pep_number=675,
-        pattern=r"not.*LiteralString|LiteralString.*expected",
-        rule_description="Non-literal string not assignable to LiteralString (PEP 675)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 681: Data Class Transforms ──────────────────────────────────
-    PEPRule(
-        pep_number=681,
-        pattern=r"dataclass_transform.*(?:invalid|incorrect)|invalid.*dataclass_transform",
-        rule_description="dataclass_transform must be used correctly (PEP 681)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 692: Unpack for **kwargs ────────────────────────────────────
-    PEPRule(
-        pep_number=692,
-        pattern=r"Unpack.*kwargs|kwargs.*Unpack.*TypedDict",
-        rule_description="**kwargs Unpack must use TypedDict (PEP 692)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 695: Type Parameter Syntax ──────────────────────────────────
-    PEPRule(
-        pep_number=695,
-        pattern=r"type.*statement.*invalid|invalid.*type alias.*statement",
-        rule_description="Type alias statement must be valid (PEP 695)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 696: Type Defaults for Type Parameters ──────────────────────
-    PEPRule(
-        pep_number=696,
-        pattern=r"default.*TypeVar.*invalid|TypeVar.*default.*(?:invalid|not allowed)",
-        rule_description="TypeVar default must be valid (PEP 696)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 698: @override ──────────────────────────────────────────────
-    PEPRule(
-        pep_number=698,
-        pattern=r"@override.*no base.*method|override.*does not override",
-        rule_description="@override method must override a base class method (PEP 698)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 705: TypedDict ReadOnly ─────────────────────────────────────
-    PEPRule(
-        pep_number=705,
-        pattern=r"ReadOnly.*(?:only|must).*TypedDict|ReadOnly.*(?:invalid|cannot)",
-        rule_description="ReadOnly can only be used in TypedDict (PEP 705)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=705,
-        pattern=r"[Cc]annot (?:assign|write|mutate).*ReadOnly|ReadOnly.*(?:assign|mutate|write)",
-        rule_description="ReadOnly TypedDict fields cannot be mutated (PEP 705)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=705,
-        pattern=r"read.?only.*mutable|mutable.*read.?only|read.?write.*ReadOnly",
-        rule_description="ReadOnly field incompatible with mutable parent (PEP 705)",
-        correct_behavior="error",
-    ),
-
-    # ── PEP 742: TypeIs ─────────────────────────────────────────────────
-    PEPRule(
-        pep_number=742,
-        pattern=r"TypeIs.*positional argument|[Tt]ype.?is.*positional argument",
-        rule_description="TypeIs function must accept at least one positional argument (PEP 742)",
-        correct_behavior="error",
-    ),
-    PEPRule(
-        pep_number=742,
-        pattern=r"TypeIs.*not.*subtype|TypeIs.*narrowing.*invalid",
-        rule_description="TypeIs narrowed type must be subtype of input (PEP 742)",
-        correct_behavior="error",
-    ),
-]
-
-
-MODULE_IMPORT_RE = re.compile(
-    r"[Mm]odule.*has no (?:attribute|member)|[Cc]ould not import|"
-    r"unresolved.import|missing.module",
-    re.IGNORECASE,
-)
-
-
-def run_tier3(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
-    """
-    Phase 3: Check against PEP specifications.
-
-    Analyzes the code and checker outputs to determine which checker
-    follows the official Python typing specifications.
-    Matches PEP rules line-by-line against checker output to avoid
-    false matches from note/info lines or module import errors.
-    """
-    findings = []
-
-    for rule in PEP_RULES:
-        for checker, output in checker_outputs.items():
-            matched = False
-            for text_line in output.splitlines():
-                lower = text_line.lower()
-                if "note:" in lower or "info[" in lower or lower.startswith("info "):
-                    continue
-                if "unknown-name" in lower and "reveal_type" in text_line:
-                    continue
-                if "undefined-reveal" in lower:
-                    continue
-                if MODULE_IMPORT_RE.search(text_line):
-                    continue
-                if re.search(rule.pattern, text_line, re.IGNORECASE):
-                    matched = True
-                    break
-
-            if not matched:
-                continue
-
-            checker_says_error = _checker_reports_error(output, checker)
-
-            is_correct = (
-                (rule.correct_behavior == "error" and checker_says_error) or
-                (rule.correct_behavior == "ok" and not checker_says_error)
-            )
-
-            findings.append({
-                "checker": checker,
-                "pep": rule.pep_number,
-                "rule": rule.rule_description,
-                "checker_behavior": "error" if checker_says_error else "ok",
-                "correct_behavior": rule.correct_behavior,
-                "is_correct": is_correct,
-                "confidence": 0.85,
-            })
-
-    # Also check code patterns that should trigger specific rules
-    code_findings = _analyze_code_patterns(source_code, checker_outputs)
-    findings.extend(code_findings)
-
-    # Source-aware analysis: analyze AST independently then judge each checker
-    source_findings = _run_source_analysis(source_code, checker_outputs)
-    findings.extend(source_findings)
-
-    return findings
-
-
-def _run_source_analysis(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
-    """
-    Run AST-level source analysis independently of checker output, then
-    judge each checker by whether it reported errors near the violations found.
-    """
-    try:
-        from .source_analysis import analyze_source
-    except ImportError:
-        from .source_analysis import analyze_source
-
-    source_findings = analyze_source(source_code)
-    if not source_findings:
-        return []
-
-    results: list[dict] = []
-    high_confidence_findings = [f for f in source_findings if f.confidence >= 0.85]
-
-    for finding in high_confidence_findings:
-        for checker, output in checker_outputs.items():
-            checker_error_lines = extract_checker_error_lines(output)
-            checker_reports = _checker_reports_error(output, checker)
-
-            has_error_near = any(
-                abs(ln - finding.line) <= 10 for ln in checker_error_lines
-            )
-
-            if has_error_near:
-                results.append({
-                    "checker": checker,
-                    "pep": finding.pep,
-                    "rule": f"[{finding.rule_id}] {finding.message}",
-                    "checker_behavior": "error",
-                    "correct_behavior": "error",
-                    "is_correct": True,
-                    "confidence": finding.confidence,
-                    "source": "source_analysis",
-                })
-            else:
-                is_wrong_location = checker_reports and checker_error_lines
-                results.append({
-                    "checker": checker,
-                    "pep": finding.pep,
-                    "rule": f"[{finding.rule_id}] {finding.message}",
-                    "checker_behavior": "ok" if not checker_reports else "error_wrong_location",
-                    "correct_behavior": "error",
-                    "is_correct": False,
-                    "confidence": 0.5 if is_wrong_location else finding.confidence,
-                    "source": "source_analysis",
-                })
-
-    return results
 
 
 def _checker_reports_error(output: str, checker: str = "") -> bool:
@@ -807,41 +312,6 @@ def _checker_reports_error(output: str, checker: str = "") -> bool:
         "0 error" not in output_lower and
         "success" not in output_lower
     )
-
-
-def _analyze_code_patterns(source_code: str, checker_outputs: dict[str, str]) -> list[dict]:
-    """Analyze code for patterns that have clear PEP-defined behavior."""
-    findings = []
-
-    # Pattern 1: str assigned to Literal (PEP 586)
-    if re.search(r':\s*str\s*=', source_code) and re.search(r'Literal\[', source_code):
-        # Check if any assignment is str -> Literal
-        try:
-            tree = ast.parse(source_code)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.AnnAssign):
-                    ann = ast.unparse(node.annotation) if node.annotation else ""
-                    if "Literal[" in ann:
-                        # This is a Literal annotation - checkers should flag str -> Literal
-                        for checker, output in checker_outputs.items():
-                            checker_says_error = _checker_reports_error(output, checker)
-                            # Per PEP 586, str -> Literal should be an error
-                            # But we need to check if the SOURCE is str, not the value
-                            if "str" in output.lower() and "literal" in output.lower():
-                                findings.append({
-                                    "checker": checker,
-                                    "pep": 586,
-                                    "rule": "str is not assignable to Literal (PEP 586)",
-                                    "line": node.lineno,
-                                    "checker_behavior": "error" if checker_says_error else "ok",
-                                    "correct_behavior": "error",
-                                    "is_correct": checker_says_error,
-                                    "confidence": 0.8,
-                                })
-        except SyntaxError:
-            pass
-
-    return findings
 
 
 # VERDICT DETERMINATION
@@ -937,59 +407,6 @@ def extract_checker_error_lines(output: str) -> list[int]:
     return list(set(lines))
 
 
-# Typing constructs the Oracle (source_analysis.py) cannot evaluate.
-# If a source file uses any of these, the Oracle's silence does NOT mean
-# the file is violation-free — it means the Oracle is blind to those
-# constructs.  Derived from COVERAGE_MATRIX.md Section 3 (AGENT-ONLY).
-_UNCOVERED_TYPING_NAMES = frozenset({
-    "TypeGuard", "TypeIs",
-    "ParamSpec", "ParamSpecArgs", "ParamSpecKwargs", "Concatenate",
-    "TypeVarTuple", "Unpack",
-    "TypeAliasType",
-    "ReadOnly",
-    "dataclass_transform",
-    "Required", "NotRequired",
-})
-
-_UNCOVERED_CONSTRUCT_RE = re.compile(
-    r"|".join([
-        r"\bParamSpec\b",
-        r"\bTypeGuard\b",
-        r"\bTypeIs\b",
-        r"\bConcatenate\b",
-        r"\bTypeVarTuple\b",
-        r"\bUnpack\b",
-        r"\bTypeAliasType\b",
-        r"\bReadOnly\b",
-        r"\bdataclass_transform\b",
-        r"\bRequired\b",
-        r"\bNotRequired\b",
-    ])
-)
-
-
-def _source_has_uncovered_constructs(source_code: str) -> bool:
-    """Return True if the source uses typing constructs the Oracle cannot analyze."""
-    try:
-        tree = ast.parse(source_code)
-    except SyntaxError:
-        return True
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module and (
-            node.module in ("typing", "typing_extensions")
-            or node.module.startswith("typing.")
-        ):
-            for alias in node.names:
-                if alias.name in _UNCOVERED_TYPING_NAMES:
-                    return True
-
-    if _UNCOVERED_CONSTRUCT_RE.search(source_code):
-        return True
-
-    return False
-
-
 def _check_bugs_against_checker(
     bugs: list[TypeBug],
     checker_error_lines: list[int],
@@ -1021,9 +438,9 @@ def _check_bugs_against_checker(
 
 
 def determine_verdicts(
-    tier1_bugs: list[TypeBug],
-    tier2_bugs: list[TypeBug],
-    tier2_witnesses: list,
+    phase1_bugs: list[TypeBug],
+    phase2_bugs: list[TypeBug],
+    phase2_witnesses: list,
     checker_outputs: dict[str, str],
     source_code: str,
 ) -> dict[str, dict]:
@@ -1031,11 +448,11 @@ def determine_verdicts(
     Determine final verdict for each checker using only objective runtime evidence.
 
     Priority:
-      1. Tier 1 runtime crashes — definitive false negative proof
+      1. Phase 1 runtime crashes — definitive false negative proof
          (checker said "ok" but code provably crashes)
-      2. Tier 2 Hypothesis crashes — false negative proof via fuzzing
+      2. Phase 2 Hypothesis crashes — false negative proof via fuzzing
          (crashes found with type-conformant inputs)
-      3. Tier 2 success witnesses — definitive false positive proof
+      3. Phase 2 success witnesses — definitive false positive proof
          (code ran correctly with beartype-verified type-conformant inputs,
           so any checker reporting "error" is demonstrably wrong)
       4. UNCERTAIN — no runtime evidence either way
@@ -1043,12 +460,12 @@ def determine_verdicts(
     verdicts = {}
     function_spans = extract_function_spans(source_code)
 
-    tier1_runtime = [b for b in tier1_bugs if b.confidence >= 0.85 and b.source == "tier1_runtime"]
-    tier2_high = [b for b in tier2_bugs if b.confidence >= 0.85]
+    phase1_runtime = [b for b in phase1_bugs if b.confidence >= 0.85 and b.source == "phase1_runtime"]
+    phase2_high = [b for b in phase2_bugs if b.confidence >= 0.85]
     # Only use witnesses that had beartype enforcement for the false positive claim,
     # or witnesses from non-fallback strategies if beartype is unavailable.
     strong_witnesses = [
-        w for w in tier2_witnesses
+        w for w in phase2_witnesses
         if w.beartype_enforced or not any(True for _ in [])  # beartype_enforced preferred
     ]
 
@@ -1060,17 +477,17 @@ def determine_verdicts(
         checker_reported_error = checker_error_status[checker]
         checker_error_lines = extract_checker_error_lines(output)
 
-        # Tier 1: direct runtime crashes — definitive false negative evidence
-        if tier1_runtime:
+        # Phase 1: direct runtime crashes — definitive false negative evidence
+        if phase1_runtime:
             caught, missed = _check_bugs_against_checker(
-                tier1_runtime, checker_error_lines, function_spans,
+                phase1_runtime, checker_error_lines, function_spans,
             )
             if missed:
                 verdicts[checker] = {
                     "verdict": Verdict.INCORRECT.value,
                     "reason": f"False negative: missed {len(missed)} proven runtime crash(es)",
                     "confidence": 0.95,
-                    "tier": 1,
+                    "phase": 1,
                     "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in missed],
                 }
                 continue
@@ -1079,21 +496,21 @@ def determine_verdicts(
                     "verdict": Verdict.CORRECT.value,
                     "reason": f"Correctly caught {len(caught)} proven runtime crash(es)",
                     "confidence": 0.95,
-                    "tier": 1,
+                    "phase": 1,
                 }
                 continue
 
-        # Tier 2a: Hypothesis crashes with type-conformant inputs — false negative evidence
-        if tier2_high:
+        # Phase 2a: Hypothesis crashes with type-conformant inputs — false negative evidence
+        if phase2_high:
             caught, missed = _check_bugs_against_checker(
-                tier2_high, checker_error_lines, function_spans,
+                phase2_high, checker_error_lines, function_spans,
             )
             if missed and not caught:
                 verdicts[checker] = {
                     "verdict": Verdict.INCORRECT.value,
                     "reason": f"False negative: missed {len(missed)} bug(s) proven by Hypothesis",
                     "confidence": 0.85,
-                    "tier": 2,
+                    "phase": 2,
                     "missed_bugs": [{"line": b.line, "type": b.bug_type} for b in missed],
                 }
                 continue
@@ -1102,13 +519,13 @@ def determine_verdicts(
                     "verdict": Verdict.CORRECT.value,
                     "reason": f"Correctly caught {len(caught)} Hypothesis-proven bug(s)",
                     "confidence": 0.85,
-                    "tier": 2,
+                    "phase": 2,
                 }
                 continue
 
-        # Tier 2b: success witnesses — definitive false positive evidence
+        # Phase 2b: success witnesses — definitive false positive evidence
         # Only applicable when no crash evidence exists (would be contradictory).
-        if strong_witnesses and not tier1_runtime and not tier2_high:
+        if strong_witnesses and not phase1_runtime and not phase2_high:
             total_successes = sum(w.calls_succeeded for w in strong_witnesses)
             enforced = any(w.beartype_enforced for w in strong_witnesses)
             confidence = 0.90 if enforced else 0.75
@@ -1121,7 +538,7 @@ def determine_verdicts(
                         + (", beartype-enforced)" if enforced else ")")
                     ),
                     "confidence": confidence,
-                    "tier": 2,
+                    "phase": 2,
                     "witnesses": total_successes,
                 }
                 continue
@@ -1134,16 +551,16 @@ def determine_verdicts(
                         + (", beartype-enforced)" if enforced else ")")
                     ),
                     "confidence": confidence,
-                    "tier": 2,
+                    "phase": 2,
                     "witnesses": total_successes,
                 }
                 continue
 
         verdicts[checker] = {
             "verdict": Verdict.UNCERTAIN.value,
-            "reason": "No runtime evidence from Tier 1 or Tier 2",
+            "reason": "No runtime evidence from Phase 1 or Phase 2",
             "confidence": 0.5,
-            "tier": 2,
+            "phase": 2,
         }
 
     return verdicts
@@ -1167,29 +584,29 @@ def evaluate_comprehensive(
     debug_dir: str | None = None,
 ) -> EvaluationResult:
     """
-    Run two-tier objective evaluation on a code example.
+    Run two-phase objective evaluation on a code example.
 
-    Tier 1: Runtime crash detection — proves false negatives
-    Tier 2: Hypothesis property testing — proves false negatives (crashes)
+    Phase 1: Runtime crash detection — proves false negatives
+    Phase 2: Hypothesis property testing — proves false negatives (crashes)
              and false positives (successful execution with type-conformant inputs)
     """
     try:
-        from .hypothesis_tier2 import run_hypothesis_tier2
+        from .hypothesis_phase2 import run_hypothesis_phase2
     except ImportError:
-        from hypothesis_tier2 import run_hypothesis_tier2
+        from hypothesis_phase2 import run_hypothesis_phase2
 
     try:
         from .targeted_tests import run_targeted_tests
     except ImportError:
         from .targeted_tests import run_targeted_tests
 
-    tier1_bugs = run_tier1(source_code, debug=debug)
+    phase1_bugs = run_phase1(source_code, debug=debug)
 
     hypothesis_output_dir = None
     if debug_dir:
         hypothesis_output_dir = os.path.join(debug_dir, filename.replace(".py", ""))
 
-    tier2_bugs, tier2_witnesses = run_hypothesis_tier2(
+    phase2_bugs, phase2_witnesses = run_hypothesis_phase2(
         source_code,
         checker_outputs=checker_outputs,
         output_dir=hypothesis_output_dir,
@@ -1200,18 +617,18 @@ def evaluate_comprehensive(
         output_dir=hypothesis_output_dir,
         filename=filename,
     )
-    tier2_bugs = tier2_bugs + targeted_bugs
+    phase2_bugs = phase2_bugs + targeted_bugs
 
     verdicts = determine_verdicts(
-        tier1_bugs, tier2_bugs, tier2_witnesses,
+        phase1_bugs, phase2_bugs, phase2_witnesses,
         checker_outputs, source_code,
     )
 
     return EvaluationResult(
         filename=filename,
-        tier1_bugs=tier1_bugs,
-        tier2_bugs=tier2_bugs,
-        tier2_witnesses=tier2_witnesses,
+        phase1_bugs=phase1_bugs,
+        phase2_bugs=phase2_bugs,
+        phase2_witnesses=phase2_witnesses,
         checker_verdicts=verdicts,
     )
 
@@ -1411,10 +828,10 @@ def evaluate_results_comprehensive(
     save_tests_dir: str | None = None,
 ) -> dict:
     """
-    Evaluate all files using the comprehensive tiered system. 
+    Evaluate all files using the comprehensive phased system. 
     Args:
         results_path: Path to results.json from the pipeline.
-        save_tests_dir: If set, save ephemeral Tier 1/2 test snippets to this directory.
+        save_tests_dir: If set, save ephemeral Phase 1/2 test snippets to this directory.
                         If None, automatically saves to a 'tests/' directory next to results.json.
     """
     if save_tests_dir is None:
@@ -1434,10 +851,10 @@ def evaluate_results_comprehensive(
     }
 
     print("=" * 70)
-    print("OBJECTIVE TWO-TIER EVALUATION")
+    print("OBJECTIVE TWO-PHASE EVALUATION")
     print("=" * 70)
-    print("Tier 1: Runtime crash detection (false negatives)")
-    print("Tier 2: Hypothesis property testing (false negatives + false positives)")
+    print("Phase 1: Runtime crash detection (false negatives)")
+    print("Phase 2: Hypothesis property testing (false negatives + false positives)")
     print(f"Files to evaluate: {len(results)}")
     print("=" * 70)
     print()
@@ -1468,16 +885,16 @@ def evaluate_results_comprehensive(
         collector.save(save_tests_dir, filename)
 
         # Print summary
-        print(f"  Tier 1 crashes: {len(result.tier1_bugs)}, Tier 2 bugs: {len(result.tier2_bugs)}, Tier 2 witnesses: {len(result.tier2_witnesses)}")
+        print(f"  Phase 1 crashes: {len(result.phase1_bugs)}, Phase 2 bugs: {len(result.phase2_bugs)}, Phase 2 witnesses: {len(result.phase2_witnesses)}")
 
         for checker, verdict in result.checker_verdicts.items():
             v = verdict["verdict"]
-            tier = verdict.get("tier", "?")
+            phase = verdict.get("phase", "?")
             if v == "CORRECT":
-                print(f"  ✓ {checker}: CORRECT (phase {tier})")
+                print(f"  ✓ {checker}: CORRECT (phase {phase})")
                 summary_stats[checker]["correct"] += 1
             elif v == "INCORRECT":
-                print(f"  ✗ {checker}: INCORRECT (phase {tier})")
+                print(f"  ✗ {checker}: INCORRECT (phase {phase})")
                 summary_stats[checker]["incorrect"] += 1
             else:
                 print(f"  ? {checker}: UNCERTAIN")
@@ -1550,17 +967,17 @@ def evaluate_results_comprehensive(
 
     with open(eval_path, "w") as f:
         json.dump({
-            "method": "two_tier_objective",
+            "method": "two_phase_objective",
             "summary": summary_stats,
             "results": [
                 {
                     "filename": r.filename,
                     "metrics": m,
-                    "tier1_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.tier1_bugs],
-                    "tier2_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.tier2_bugs],
-                    "tier2_witnesses": [
+                    "phase1_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.phase1_bugs],
+                    "phase2_bugs": [{"line": b.line, "type": b.bug_type, "msg": b.message} for b in r.phase2_bugs],
+                    "phase2_witnesses": [
                         {"call": w.call_text, "successes": w.calls_succeeded, "beartype_enforced": w.beartype_enforced}
-                        for w in r.tier2_witnesses
+                        for w in r.phase2_witnesses
                     ],
                     "verdicts": r.checker_verdicts,
                 }
@@ -1581,9 +998,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python comprehensive_eval.py <results.json> [--save-tests <dir>]")
         print()
-        print("Objective two-tier evaluation system:")
-        print("  Tier 1: Runtime crash detection — proves false negatives")
-        print("  Tier 2: Hypothesis property testing — proves false negatives and false positives")
+        print("Objective two-phase evaluation system:")
+        print("  Phase 1: Runtime crash detection — proves false negatives")
+        print("  Phase 2: Hypothesis property testing — proves false negatives and false positives")
         print()
         print("Options:")
         print("  --save-tests <dir>  Save ephemeral test snippets for debugging")

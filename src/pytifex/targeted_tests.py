@@ -9,9 +9,9 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 try:
-    from .hypothesis_tier2 import TypeBug
+    from .hypothesis_phase2 import TypeBug
 except ImportError:
-    from hypothesis_tier2 import TypeBug
+    from hypothesis_phase2 import TypeBug
 
 
 TYPE_ERROR_EXCEPTIONS = (TypeError, KeyError, AttributeError, ValueError)
@@ -966,7 +966,7 @@ def run_targeted_tests(
             line=b["line"],
             bug_type=b["type"],
             message=f'{b.get("test", "targeted")}: {b["error"]}',
-            source="tier2_targeted",
+            source="phase2_targeted",
             confidence=0.90,
             details={
                 "test_name": b.get("test", "unknown"),
