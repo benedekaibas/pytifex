@@ -117,12 +117,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#pytifex-automated-differential-testing-for-python-type-checkers" id="toc-pytifex-automated-differential-testing-for-python-type-checkers" class="nav-link active" data-scroll-target="#pytifex-automated-differential-testing-for-python-type-checkers">Pytifex — Automated Differential Testing for Python Type Checkers</a>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a>
   <ul class="collapse">
-  <li><a href="#how-it-works" id="toc-how-it-works" class="nav-link" data-scroll-target="#how-it-works">How It Works</a></li>
-  <li><a href="#type-checkers-tested" id="toc-type-checkers-tested" class="nav-link" data-scroll-target="#type-checkers-tested">Type Checkers Tested</a></li>
-  <li><a href="#quick-start" id="toc-quick-start" class="nav-link" data-scroll-target="#quick-start">Quick Start</a></li>
-  <li><a href="#documentation" id="toc-documentation" class="nav-link" data-scroll-target="#documentation">Documentation</a></li>
+  <li><a href="#what-uv-run-pytifex-actually-does-in-order" id="toc-what-uv-run-pytifex-actually-does-in-order" class="nav-link" data-scroll-target="#what-uv-run-pytifex-actually-does-in-order">What <code>uv run pytifex</code> actually does, in order</a></li>
+  <li><a href="#type-checkers-tested" id="toc-type-checkers-tested" class="nav-link" data-scroll-target="#type-checkers-tested">Type checkers tested</a></li>
+  <li><a href="#quick-start" id="toc-quick-start" class="nav-link" data-scroll-target="#quick-start">Quick start</a></li>
+  <li><a href="#where-to-go-next" id="toc-where-to-go-next" class="nav-link" data-scroll-target="#where-to-go-next">Where to go next</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -133,24 +133,38 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 
 
-<section id="pytifex-automated-differential-testing-for-python-type-checkers" class="level1">
-<h1>Pytifex — Automated Differential Testing for Python Type Checkers</h1>
+<section id="overview" class="level1">
+<h1>Overview</h1>
 <p><a href="https://github.com/benedekaibas/pytifex"><img src="https://img.shields.io/badge/github-pytifex-blue?logo=github.png" class="img-fluid" alt="GitHub"></a> <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg" class="img-fluid" alt="Python 3.12+"></a> <a href="https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" class="img-fluid" alt="License: MIT"></a></p>
-<p>Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-tiered evaluation.</p>
-<section id="how-it-works" class="level2">
-<h2 class="anchored" data-anchor-id="how-it-works">How It Works</h2>
-<pre class="text"><code> Mine bugs from        Generate code         Run 4 type           Evaluate which
- GitHub issues    →    variations via    →    checkers on      →   checker is
- (mypy, ty, ...)       Gemini LLM            each example         correct</code></pre>
-<ol type="1">
-<li><strong>Mine</strong> — Fetch real bug reports (false positives, false negatives) from mypy, pyrefly, ty, and pyright GitHub repositories</li>
-<li><strong>Mutate</strong> — Use the bugs as seeds for Gemini to generate new code targeting similar edge cases</li>
-<li><strong>Test</strong> — Run mypy, pyrefly, zuban, and ty on each generated example; keep only disagreements</li>
-<li><strong>Evaluate</strong> — Determine which checker is correct using runtime crash detection, Hypothesis testing, PEP spec matching, and AST analysis</li>
-</ol>
+<p>Pytifex finds cases where Python type checkers disagree with each other. It mines real bug reports from type checker repositories, uses them as seeds for an LLM to generate new code, runs that code through four checkers, and keeps only the examples where the checkers don’t agree. Then it figures out which checker was actually right, using runtime execution as the ground truth.</p>
+<section id="what-uv-run-pytifex-actually-does-in-order" class="level2">
+<h2 class="anchored" data-anchor-id="what-uv-run-pytifex-actually-does-in-order">What <code>uv run pytifex</code> actually does, in order</h2>
+<p><strong>1. Mine seeds</strong> — once, up front, unless <code>--no-github</code>. Pulls closed, confirmed bug-fix issues straight from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># github_issues.py</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_confirmed_bug(issue: <span class="bu">dict</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state"</span>) <span class="op">!=</span> <span class="st">"closed"</span>:</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state_reason"</span>) <span class="op">==</span> <span class="st">"not_planned"</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>2. Generate</strong> — a batch of new code gets written by the LLM, seeded from those issues (or from the built-in patterns if there are no seeds):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># pipeline.py</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> seed_examples:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_seed_based_prompt(batch_seeds, batch_size)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_expert_prompt(batch_size)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>3. Check</strong> — every generated example runs through mypy, pyrefly, zuban, and ty.</p>
+<p><strong>4. Filter</strong> — a disagreement is any example where the checkers don’t all return the same status:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># pipeline.py</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> has_disagreement(results: <span class="bu">dict</span>[<span class="bu">str</span>, CheckerResult]) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    statuses <span class="op">=</span> [r.status <span class="cf">for</span> r <span class="kw">in</span> results.values()]</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">len</span>(<span class="bu">set</span>(statuses)) <span class="op">&gt;</span> <span class="dv">1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Disagreements get kept as-is. Examples where all four checkers agreed get one shot at a fix: sent back to the LLM with the real checker output attached, up to <code>--max-refinements</code> times. Steps 2–4 repeat in batches until <code>--num-examples</code> disagreements are found, or <code>--max-attempts</code> runs out.</p>
+<p><strong>5. Evaluate</strong> — everything that survived gets saved to <code>generated_examples/&lt;timestamp&gt;/</code>, then run through two phases: Phase 1 checks whether the code crashes at runtime, Phase 2 fuzzes it with Hypothesis-generated, type-conformant inputs. Whichever phase finds concrete proof decides which checker was right. If neither does, an LLM judge gets the final say.</p>
+<p>A verdict is never guessed upfront — it only gets issued once there’s an actual crash or an actual successful run behind it.</p>
 </section>
 <section id="type-checkers-tested" class="level2">
-<h2 class="anchored" data-anchor-id="type-checkers-tested">Type Checkers Tested</h2>
+<h2 class="anchored" data-anchor-id="type-checkers-tested">Type checkers tested</h2>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -179,25 +193,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 </section>
 <section id="quick-start" class="level2">
-<h2 class="anchored" data-anchor-id="quick-start">Quick Start</h2>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytifex</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<h2 class="anchored" data-anchor-id="quick-start">Quick start</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/benedekaibas/pytifex</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> pytifex</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run <span class="at">--extra</span> dev pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>--extra dev</code> is what pulls in mypy, pyrefly, zuban, and ty — they’re an optional dependency group in <code>pyproject.toml</code>, not a base dependency, so a plain <code>uv run pytifex</code> won’t install them.</p>
 <blockquote class="blockquote">
-<p><strong>Note:</strong> Pytifex is a research tool developed for a senior comprehensive project. It implements a bug-seeded mutation methodology for proactively finding type checker bugs before users encounter them.</p>
+<p>Pytifex is a research tool I built for a senior comprehensive project. The idea is to find type checker bugs proactively, before a user runs into them in production.</p>
 </blockquote>
 </section>
-<section id="documentation" class="level2">
-<h2 class="anchored" data-anchor-id="documentation">Documentation</h2>
+<section id="where-to-go-next" class="level2">
+<h2 class="anchored" data-anchor-id="where-to-go-next">Where to go next</h2>
 <ul>
-<li><strong><a href="./getting-started.html">Getting Started</a></strong> — Installation, setup, and first run</li>
-<li><strong><a href="./architecture.html">Architecture</a></strong> — System design, pipeline flow, and file structure</li>
-<li><strong><a href="./bug-mining.html">Bug Mining &amp; Mutation</a></strong> — How seeds are mined from GitHub and mutated into test cases</li>
-<li><strong><a href="./evaluation.html">Evaluation System</a></strong> — Multi-tiered evaluation: runtime, Hypothesis, PEP specs, static analysis</li>
-<li><strong><a href="./checkers.html">Type Checkers</a></strong> — How checkers are invoked, output parsed, and how to add new ones</li>
-<li><strong><a href="./patterns.html">Divergence Patterns</a></strong> — The 10 built-in edge-case patterns and how to add more</li>
+<li><strong><a href="./getting-started.html">Getting Started</a></strong> — installation, setup, and first run.</li>
+<li><strong><a href="./architecture.html">Architecture</a></strong> — system design, pipeline flow, and file structure.</li>
+<li><strong><a href="./bug-mining.html">Bug Mining &amp; Mutation</a></strong> — how seeds are mined from GitHub and mutated into test cases.</li>
+<li><strong><a href="./evaluation.html">Evaluation System</a></strong> — the two-phase evaluation: runtime crash detection and Hypothesis fuzzing.</li>
+<li><strong><a href="./checkers.html">Type Checkers</a></strong> — how checkers are invoked, output parsed, and how to add new ones.</li>
+<li><strong><a href="./patterns.html">Divergence Patterns</a></strong> — the 10 built-in edge-case patterns and how to add more.</li>
 </ul>
 
 

@@ -119,17 +119,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#type-checkers" id="toc-type-checkers" class="nav-link active" data-scroll-target="#type-checkers">Type Checkers</a>
   <ul class="collapse">
-  <li><a href="#supported-checkers" id="toc-supported-checkers" class="nav-link" data-scroll-target="#supported-checkers">Supported Checkers</a></li>
-  <li><a href="#how-checkers-are-invoked" id="toc-how-checkers-are-invoked" class="nav-link" data-scroll-target="#how-checkers-are-invoked">How Checkers Are Invoked</a></li>
-  <li><a href="#output-parsing" id="toc-output-parsing" class="nav-link" data-scroll-target="#output-parsing">Output Parsing</a>
+  <li><a href="#the-four-checkers" id="toc-the-four-checkers" class="nav-link" data-scroll-target="#the-four-checkers">The four checkers</a></li>
+  <li><a href="#how-they-get-invoked" id="toc-how-they-get-invoked" class="nav-link" data-scroll-target="#how-they-get-invoked">How they get invoked</a></li>
+  <li><a href="#parsing-the-output" id="toc-parsing-the-output" class="nav-link" data-scroll-target="#parsing-the-output">Parsing the output</a>
   <ul class="collapse">
   <li><a href="#mypy-zuban" id="toc-mypy-zuban" class="nav-link" data-scroll-target="#mypy-zuban">mypy / zuban</a></li>
   <li><a href="#pyrefly" id="toc-pyrefly" class="nav-link" data-scroll-target="#pyrefly">pyrefly</a></li>
   <li><a href="#ty" id="toc-ty" class="nav-link" data-scroll-target="#ty">ty</a></li>
-  <li><a href="#generic-fallback" id="toc-generic-fallback" class="nav-link" data-scroll-target="#generic-fallback">Generic fallback</a></li>
+  <li><a href="#anything-else" id="toc-anything-else" class="nav-link" data-scroll-target="#anything-else">Anything else</a></li>
   </ul></li>
-  <li><a href="#status-determination" id="toc-status-determination" class="nav-link" data-scroll-target="#status-determination">Status Determination</a></li>
-  <li><a href="#adding-a-new-type-checker" id="toc-adding-a-new-type-checker" class="nav-link" data-scroll-target="#adding-a-new-type-checker">Adding a New Type Checker</a></li>
+  <li><a href="#re-deriving-statuses-after-a-parser-change" id="toc-re-deriving-statuses-after-a-parser-change" class="nav-link" data-scroll-target="#re-deriving-statuses-after-a-parser-change">Re-deriving statuses after a parser change</a></li>
+  <li><a href="#adding-a-new-checker" id="toc-adding-a-new-checker" class="nav-link" data-scroll-target="#adding-a-new-checker">Adding a new checker</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -142,9 +142,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="type-checkers" class="level1">
 <h1>Type Checkers</h1>
-<p>Pytifex runs four Python type checkers and compares their results to find disagreements. This page covers which checkers are tested, how they’re invoked, how their output is parsed, and how to add a new one.</p>
-<section id="supported-checkers" class="level2">
-<h2 class="anchored" data-anchor-id="supported-checkers">Supported Checkers</h2>
+<p>Pytifex runs four type checkers and compares their output to find disagreements. This page covers which checkers, how they get invoked, how their output gets parsed into “ok”/“error”, and how to add a new one.</p>
+<section id="the-four-checkers" class="level2">
+<h2 class="anchored" data-anchor-id="the-four-checkers">The four checkers</h2>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -156,43 +156,43 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>mypy</strong></td>
+<td>mypy</td>
 <td>1.19.0</td>
 <td><code>mypy &lt;file&gt;</code></td>
 <td><a href="https://mypy-lang.org/">mypy-lang.org</a></td>
 </tr>
 <tr class="even">
-<td><strong>pyrefly</strong></td>
-<td>0.60.0</td>
+<td>pyrefly</td>
+<td>0.44.2</td>
 <td><code>pyrefly check &lt;file&gt;</code></td>
 <td><a href="https://github.com/facebook/pyrefly">github.com/facebook/pyrefly</a></td>
 </tr>
 <tr class="odd">
-<td><strong>zuban</strong></td>
+<td>zuban</td>
 <td>0.3.0</td>
 <td><code>zuban check &lt;file&gt;</code></td>
 <td><a href="https://github.com/zubanls/zuban">github.com/zubanls/zuban</a></td>
 </tr>
 <tr class="even">
-<td><strong>ty</strong></td>
+<td>ty</td>
 <td>0.0.1-alpha.32</td>
 <td><code>ty check &lt;file&gt;</code></td>
 <td><a href="https://github.com/astral-sh/ty">github.com/astral-sh/ty</a></td>
 </tr>
 </tbody>
 </table>
-<p>All four are configured in a single dict in <a href="https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py"><code>config.py</code></a>:</p>
+<p>All four live in one dict in <a href="https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py"><code>config.py</code></a>:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>CHECKERS <span class="op">=</span> {</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: [<span class="st">"mypy"</span>],</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: [<span class="st">"pyrefly"</span>, <span class="st">"check"</span>],</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: [<span class="st">"zuban"</span>, <span class="st">"check"</span>],</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ty"</span>: [<span class="st">"ty"</span>, <span class="st">"check"</span>],</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Each value is the argument list passed to <code>subprocess.run</code>.</p>
+<p>Each value is the argument list that gets handed to <code>subprocess.run</code>, with the file path appended.</p>
 </section>
-<section id="how-checkers-are-invoked" class="level2">
-<h2 class="anchored" data-anchor-id="how-checkers-are-invoked">How Checkers Are Invoked</h2>
-<p>The <code>run_checkers.py</code> module iterates over every <code>.py</code> file in a generation directory and shells out to each checker via <code>subprocess</code>:</p>
+<section id="how-they-get-invoked" class="level2">
+<h2 class="anchored" data-anchor-id="how-they-get-invoked">How they get invoked</h2>
+<p><code>run_checkers.py</code> walks every <code>.py</code> file in a generation directory and shells out to each checker:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_tool(command: <span class="bu">list</span>[<span class="bu">str</span>], filepath: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>:</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        full_cmd <span class="op">=</span> command <span class="op">+</span> [filepath]</span>
@@ -208,13 +208,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"Error: Command '</span><span class="sc">{</span>command[<span class="dv">0</span>]<span class="sc">}</span><span class="ss">' not found in PATH."</span></span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"Execution Error: </span><span class="sc">{</span><span class="bu">str</span>(e)<span class="sc">}</span><span class="ss">"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Key points:</p>
+<p>A few things worth knowing:</p>
 <ul>
-<li><strong><code>check=False</code></strong> — Pytifex never raises on a non-zero exit code. Many checkers exit non-zero when they find type errors, so the return code alone doesn’t tell us much.</li>
-<li><strong>stdout + stderr</strong> are merged into a single string. Stderr is appended under a <code>[STDERR]</code> marker.</li>
-<li>If the checker binary isn’t installed, the output is a human-readable error string rather than a crash.</li>
+<li><code>check=False</code> — a non-zero exit code never raises here. Most checkers exit non-zero whenever they find any type error, so the exit code by itself doesn’t tell you much.</li>
+<li>stdout and stderr get merged into one string, with stderr appended after a <code>[STDERR]</code> marker.</li>
+<li>A missing checker binary doesn’t crash the run — you get a readable error string back instead.</li>
 </ul>
-<p>The outer loop in <code>run_checkers()</code> collects results into a <code>results.json</code> file:</p>
+<p>The results collect into <code>results.json</code>:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> tool_name, command <span class="kw">in</span> CHECKERS.items():</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> run_tool(command, filepath)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    file_result[<span class="st">"outputs"</span>][tool_name] <span class="op">=</span> output</span>
@@ -225,17 +225,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"error"</span> <span class="cf">if</span> checker_reports_error(output, tool_name) <span class="cf">else</span> <span class="st">"ok"</span></span>
 <span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="output-parsing" class="level2">
-<h2 class="anchored" data-anchor-id="output-parsing">Output Parsing</h2>
-<p>Each checker has a different output format, so Pytifex uses checker-specific parsing in <code>_checker_reports_error()</code> (defined in both <code>comprehensive_eval.py</code> and <code>rederive_statuses.py</code>). The function returns <code>True</code> if the checker reported a type error, <code>False</code> otherwise.</p>
+<section id="parsing-the-output" class="level2">
+<h2 class="anchored" data-anchor-id="parsing-the-output">Parsing the output</h2>
+<p>Every checker formats its output differently, so there’s checker-specific parsing in <code>_checker_reports_error()</code>. That function lives in both <code>comprehensive_eval.py</code> and <code>rederive_statuses.py</code> — keep them in sync if you touch this.</p>
 <section id="mypy-zuban" class="level3">
 <h3 class="anchored" data-anchor-id="mypy-zuban">mypy / zuban</h3>
-<p>mypy and zuban share the same output format:</p>
-<ul>
-<li><strong>Clean run:</strong> <code>Success: no issues found in 1 source file</code></li>
-<li><strong>Errors:</strong> <code>Found N errors in M file (checked …)</code> where N &gt; 0</li>
-<li><strong>Fallback:</strong> individual lines matching <code>:&lt;whitespace&gt;error</code></li>
-</ul>
+<p>Same format for both:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> checker <span class="kw">in</span> (<span class="st">"mypy"</span>, <span class="st">"zuban"</span>):</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"success: no issues found"</span> <span class="kw">in</span> output.lower():</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
@@ -249,7 +244,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="pyrefly" class="level3">
 <h3 class="anchored" data-anchor-id="pyrefly">pyrefly</h3>
-<p>Pyrefly emits diagnostic lines starting with <code>ERROR</code>. The parser filters out false positives from <code>reveal_type</code> lookups:</p>
+<p>Diagnostics start with <code>ERROR</code>. There’s a special case to filter out <code>reveal_type()</code> noise, which pyrefly reports as an “unknown-name” error even though it’s just a debugging call:</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> checker <span class="op">==</span> <span class="st">"pyrefly"</span>:</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    real_errors <span class="op">=</span> <span class="dv">0</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> line <span class="kw">in</span> output.splitlines():</span>
@@ -263,7 +258,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="ty" class="level3">
 <h3 class="anchored" data-anchor-id="ty">ty</h3>
-<p>ty prints <code>All checks passed!</code> on a clean run. Errors are lines matching <code>error[rule-name]:</code>. Warning/info diagnostics are ignored — only <code>error[…]</code> counts:</p>
+<p>Clean runs print <code>All checks passed!</code>. Errors are lines matching <code>error[rule-name]:</code> — warnings and info diagnostics don’t count:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> checker <span class="op">==</span> <span class="st">"ty"</span>:</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">"all checks passed"</span> <span class="kw">in</span> output.lower():</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
@@ -272,9 +267,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">True</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">False</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="generic-fallback" class="level3">
-<h3 class="anchored" data-anchor-id="generic-fallback">Generic fallback</h3>
-<p>For any unknown checker name, a simple heuristic is used:</p>
+<section id="anything-else" class="level3">
+<h3 class="anchored" data-anchor-id="anything-else">Anything else</h3>
+<p>A generic fallback for an unrecognized checker name:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>output_lower <span class="op">=</span> output.lower()</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> (</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"error"</span> <span class="kw">in</span> output_lower <span class="kw">and</span></span>
@@ -283,44 +278,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="status-determination" class="level2">
-<h2 class="anchored" data-anchor-id="status-determination">Status Determination</h2>
-<p>Every file × checker pair gets a status of <code>"ok"</code> or <code>"error"</code>:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>status <span class="op">=</span> <span class="st">"error"</span> <span class="cf">if</span> checker_reports_error(output, checker_name) <span class="cf">else</span> <span class="st">"ok"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>These statuses are stored in <code>results.json</code> and are the basis for detecting <em>disagreements</em>.</p>
-<p>If you suspect the statuses in an existing <code>results.json</code> are stale (e.g., after updating the parsing logic), you can re-derive them:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Preview changes without writing</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> rederive_statuses.py <span class="at">--dry-run</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Apply corrected statuses</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> rederive_statuses.py <span class="at">--apply</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="re-deriving-statuses-after-a-parser-change" class="level2">
+<h2 class="anchored" data-anchor-id="re-deriving-statuses-after-a-parser-change">Re-deriving statuses after a parser change</h2>
+<p>If you fix the parsing logic, old <code>results.json</code> files still have statuses computed by the old version. There’s a script to recompute them — <code>rederive_statuses.py</code>. Run it as a module from the repo root, not as a bare script (it has relative imports):</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytifex.rederive_statuses             <span class="co"># dry run, reports mismatches only</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytifex.rederive_statuses <span class="at">--apply</span>     <span class="co"># writes the corrected statuses</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>One caveat worth knowing: this script computes its <code>ROOT</code> as its own directory (<code>src/pytifex/</code>), but <code>generated_examples/</code> actually lives at the repo root. So as written, the glob it builds (<code>ROOT/generated_examples/*/results.json</code>) won’t find your real output unless you run it with the working directory set to <code>src/pytifex/</code> and a <code>generated_examples</code> symlink or copy sitting there too. If you hit this, it’s not you — it’s a path bug in the script, not something you did wrong.</p>
 </section>
-<section id="adding-a-new-type-checker" class="level2">
-<h2 class="anchored" data-anchor-id="adding-a-new-type-checker">Adding a New Type Checker</h2>
+<section id="adding-a-new-checker" class="level2">
+<h2 class="anchored" data-anchor-id="adding-a-new-checker">Adding a new checker</h2>
 <ol type="1">
-<li><p><strong>Install the checker</strong> so it’s available on <code>PATH</code>.</p></li>
-<li><p><strong>Add an entry to <code>CHECKERS</code></strong> in <code>config.py</code>:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>CHECKERS <span class="op">=</span> {</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: [<span class="st">"mypy"</span>],</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: [<span class="st">"pyrefly"</span>, <span class="st">"check"</span>],</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: [<span class="st">"zuban"</span>, <span class="st">"check"</span>],</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ty"</span>: [<span class="st">"ty"</span>, <span class="st">"check"</span>],</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyright"</span>: [<span class="st">"pyright"</span>],          <span class="co"># ← new</span></span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Add parsing logic</strong> in <code>comprehensive_eval._checker_reports_error()</code> (and the copy in <code>rederive_statuses.checker_reports_error()</code>). Add a new <code>if</code> branch before the generic fallback:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> checker <span class="op">==</span> <span class="st">"pyright"</span>:</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># pyright prints "0 errors, 0 warnings, 0 informations" on success</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> re.search(<span class="vs">r"</span><span class="kw">(</span><span class="dv">\d</span><span class="op">+</span><span class="kw">)</span><span class="dv">\s</span><span class="op">+</span><span class="vs">errors</span><span class="op">?</span><span class="vs">"</span>, output)</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> m:</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">int</span>(m.group(<span class="dv">1</span>)) <span class="op">&gt;</span> <span class="dv">0</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">False</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Run the pipeline</strong> to verify your checker works end-to-end:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> run_checkers.py</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p><strong>Validate parsing</strong> with the existing test harness in <code>test_checker_parsing.py</code> — it compares parser output against ground-truth statuses from a reference <code>results.json</code>.</p></li>
+<li><p>Make sure it’s installed and on <code>PATH</code>.</p></li>
+<li><p>Add it to <code>CHECKERS</code> in <code>config.py</code>:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>CHECKERS <span class="op">=</span> {</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: [<span class="st">"mypy"</span>],</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: [<span class="st">"pyrefly"</span>, <span class="st">"check"</span>],</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: [<span class="st">"zuban"</span>, <span class="st">"check"</span>],</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ty"</span>: [<span class="st">"ty"</span>, <span class="st">"check"</span>],</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyright"</span>: [<span class="st">"pyright"</span>],          <span class="co"># new</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p>Add parsing logic to <code>_checker_reports_error()</code> — in both <code>comprehensive_eval.py</code> and <code>rederive_statuses.py</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> checker <span class="op">==</span> <span class="st">"pyright"</span>:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># pyright prints "0 errors, 0 warnings, 0 informations" on success</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> re.search(<span class="vs">r"</span><span class="kw">(</span><span class="dv">\d</span><span class="op">+</span><span class="kw">)</span><span class="dv">\s</span><span class="op">+</span><span class="vs">errors</span><span class="op">?</span><span class="vs">"</span>, output)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> m:</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">int</span>(m.group(<span class="dv">1</span>)) <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">False</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p>Run the pipeline end-to-end to make sure it actually works:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex check</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p>Sanity-check your parser against a real <code>results.json</code>. There’s a script for this too, <code>check_checker_parsing.py</code> — note it hardcodes a specific generation directory name inside it, so you’ll need to point it at one that exists before it’ll run:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-m</span> pytifex.check_checker_parsing</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 </ol>
-<blockquote class="blockquote">
-<p><strong>Note:</strong> The parsing logic currently lives in two places (<code>comprehensive_eval.py</code> and <code>rederive_statuses.py</code>). Keep them in sync when adding a new checker.</p>
-</blockquote>
 
 
 </section>

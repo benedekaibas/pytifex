@@ -1,135 +1,113 @@
 # Divergence Patterns
 
-## What Are Divergence Patterns?
+## What these actually are
 
-Python's type system is defined across dozens of PEPs, and each type checker — mypy, pyrefly, ty, zuban — implements those specs independently. When a PEP is ambiguous, underspecified, or silent on an edge case, checkers make different choices. The result: **the same valid Python code gets accepted by one checker and rejected by another.**
+Python's type system is spread across dozens of PEPs, and mypy, pyrefly, ty, and zuban each implement those specs independently. Where a PEP is ambiguous or just silent on an edge case, the four checkers make different choices — so the same valid Python code gets accepted by one and rejected by another.
 
-These disagreements aren't bugs in the traditional sense. They're *divergences* — areas where reasonable interpretations of the spec lead to incompatible behavior. Pytifex calls these **divergence patterns**: recurring categories of type-system edge cases that reliably trigger checker disagreements.
+These aren't bugs in the usual sense. They're divergences — places where a reasonable reading of the spec leads to genuinely different behavior. Pytifex calls these divergence patterns: recurring categories of type-system edge cases that reliably cause disagreements.
 
-Understanding these patterns matters because:
+Why this matters:
 
-- **Library authors** need code that passes all major checkers, not just one.
-- **Type checker developers** can use divergences to identify spec gaps and alignment issues.
-- **Researchers** studying type system soundness need a systematic taxonomy of where implementations differ.
+- Library authors need code that passes every major checker, not just the one they happen to use.
+- Checker developers can use divergences to spot spec gaps and places where alignment would help.
+- Anyone studying type system soundness needs an actual taxonomy of where implementations diverge, instead of anecdotes.
 
-## The 10 Built-In Patterns
+## The 10 built-in patterns
 
-Patterns are defined as `DivergencePattern` dataclass instances in [`patterns.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/patterns.py):
+Defined as `DivergencePattern` instances in [`src/pytifex/patterns.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/patterns.py):
 
 ```python
 @dataclass
 class DivergencePattern:
-    id: str            # Unique kebab-case identifier
-    category: str      # Grouping category (e.g., "protocols", "generics")
-    description: str   # What the pattern tests
-    pep_refs: list[str]  # Relevant PEP numbers
+    id: str            # unique kebab-case id
+    category: str      # grouping, e.g. "protocols", "generics"
+    description: str   # what it tests
+    pep_refs: list[str]  # relevant PEPs
 ```
-
-All 10 patterns are listed below.
 
 ### `protocol-defaults`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `protocols` |
-| **PEP refs** | PEP 544 |
-| **Description** | Protocol methods with default argument values may be checked differently when implementations use different defaults |
+| Category | PEP refs |
+|---|---|
+| protocols | PEP 544 |
 
-When a protocol method declares default argument values, checkers disagree on whether an implementing class must use the *same* default or can use a different one.
+Protocol methods with default argument values. Checkers disagree on whether an implementing class has to use the *same* default or can pick its own.
 
 ### `typed-dict-total`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `typed-dict` |
-| **PEP refs** | PEP 589, PEP 655 |
-| **Description** | TypedDict with mixed `total=True`/`False` inheritance and `Required`/`NotRequired` fields |
+| Category | PEP refs |
+|---|---|
+| typed-dict | PEP 589, PEP 655 |
 
-Combining `total=False` base classes with `Required` field overrides in subclasses creates ambiguity about which keys are actually required at construction time.
+`TypedDict` mixing `total=True`/`False` inheritance with `Required`/`NotRequired` overrides. Combining a `total=False` base with a `Required` override in a subclass creates ambiguity about what's actually mandatory at construction time.
 
 ### `typeguard-narrowing`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `type-narrowing` |
-| **PEP refs** | PEP 647, PEP 742 |
-| **Description** | `TypeGuard` and `TypeIs` functions with generic type parameters and list narrowing |
+| Category | PEP refs |
+|---|---|
+| type-narrowing | PEP 647, PEP 742 |
 
-When a `TypeGuard` or `TypeIs` function narrows a generic type (e.g., `list[Animal]` to `list[Cat]`), checkers apply narrowing differently — especially for container types where covariance matters.
+`TypeGuard`/`TypeIs` functions with generic parameters, e.g. narrowing `list[Animal]` to `list[Cat]`. Checkers apply narrowing differently where container covariance is involved.
 
 ### `param-spec-decorator`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `callable` |
-| **PEP refs** | PEP 612 |
-| **Description** | `ParamSpec` used in decorators applied to classmethods or staticmethods |
+| Category | PEP refs |
+|---|---|
+| callable | PEP 612 |
 
-Stacking a `ParamSpec`-based decorator on top of `@classmethod` or `@staticmethod` interacts with how the `cls`/`self` parameter is captured. Checkers disagree on the resulting signature.
+A `ParamSpec`-based decorator stacked on `@classmethod` or `@staticmethod`. How `cls`/`self` gets captured through the decorator is where checkers disagree.
 
 ### `self-generic`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `generics` |
-| **PEP refs** | PEP 673 |
-| **Description** | `Self` type used in generic classes, especially with abstract methods |
+| Category | PEP refs |
+|---|---|
+| generics | PEP 673 |
 
-Using `Self` as a return type annotation inside a generic class with abstract methods creates tension between the `Self` type and the class's own type parameters.
+`Self` as a return type inside a generic class with abstract methods. Tension between `Self` and the class's own type parameters.
 
 ### `newtype-containers`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `newtypes` |
-| **PEP refs** | PEP 484 |
-| **Description** | `NewType` values in generic containers and covariance/contravariance handling |
+| Category | PEP refs |
+|---|---|
+| newtypes | PEP 484 |
 
-Placing `NewType` values inside generic containers exposes disagreements about whether the new type preserves variance relationships of its base type.
+`NewType` values inside generic containers, and whether the wrapper preserves the base type's variance.
 
 ### `overload-literals`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `overloads` |
-| **PEP refs** | PEP 484, PEP 586 |
-| **Description** | Overloaded functions with `Literal` types and overlapping signatures |
+| Category | PEP refs |
+|---|---|
+| overloads | PEP 484, PEP 586 |
 
-When overloaded function signatures use `Literal` types that partially overlap, checkers differ on which overload is selected and whether the overlap itself is an error.
+Overloaded signatures with `Literal` types that partially overlap. Checkers differ on which overload wins and whether the overlap itself should be an error.
 
 ### `final-override`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `inheritance` |
-| **PEP refs** | PEP 591 |
-| **Description** | `Final` class attributes overridden by properties or descriptors in subclasses |
+| Category | PEP refs |
+|---|---|
+| inheritance | PEP 591 |
 
-A `Final` attribute in a base class that a subclass replaces with a `@property` triggers different responses — some checkers flag the override, others allow it because a property is technically a descriptor, not a reassignment.
+A `Final` attribute in a base class replaced by a `@property` in a subclass. Some checkers flag this as an override; others allow it since a property is technically a descriptor, not a reassignment.
 
 ### `keyword-vs-positional`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `callable` |
-| **PEP refs** | PEP 544, PEP 570 |
-| **Description** | Protocol callable signatures with keyword-only vs positional-or-keyword parameters |
+| Category | PEP refs |
+|---|---|
+| callable | PEP 544, PEP 570 |
 
-When a protocol defines a method with keyword-only parameters (after `*`), checkers disagree on whether an implementation using positional-or-keyword parameters satisfies the protocol.
+A protocol method with keyword-only params, implemented with positional-or-keyword params instead. Checkers disagree on whether that satisfies the protocol.
 
 ### `bounded-typevars`
 
-| Field | Value |
-|-------|-------|
-| **Category** | `generics` |
-| **PEP refs** | PEP 484 |
-| **Description** | `TypeVar` bounds with nested generic types and multiple inheritance |
+| Category | PEP refs |
+|---|---|
+| generics | PEP 484 |
 
-A `TypeVar` bound to a generic type (e.g., `T = TypeVar("T", bound=Comparable[Any])`) used inside another generic creates complex constraint-solving scenarios where checkers reach different conclusions.
+A `TypeVar` bound to a generic type (e.g. `T = TypeVar("T", bound=Comparable[Any])`), used inside another generic. Complex enough constraint-solving that checkers land in different places.
 
-## How Patterns Are Used
+## How they actually get used
 
-Patterns drive the LLM-based code generation pipeline. The `build_expert_prompt` function in `prompts.py` injects all pattern descriptions into the prompt sent to the model:
+`build_expert_prompt` in `prompts.py` dumps every pattern description straight into the generation prompt:
 
 ```python
 def build_expert_prompt(num_examples: int = 10) -> str:
@@ -137,21 +115,16 @@ def build_expert_prompt(num_examples: int = 10) -> str:
         f"- **{p.id}** ({p.category}): {p.description} [refs: {', '.join(p.pep_refs)}]"
         for p in PATTERNS
     )
-    # ... patterns_text is embedded in the generation prompt
+    # patterns_text gets embedded in the generation prompt
 ```
 
-This tells the LLM *where to look* for disagreements rather than generating random type-annotated code. The seed-based prompt (`build_seed_based_prompt`) also uses the first 6 patterns as supplementary context alongside real GitHub issue examples.
+This tells the model *where to look* instead of generating random type-annotated code and hoping. `build_seed_based_prompt` also throws in the first 6 patterns alongside the real GitHub seeds, as extra context.
 
-When the pipeline runs:
+Once a run starts: patterns go into the prompt → the LLM writes code targeting them → each snippet runs through all four checkers → only the ones where checkers disagree survive.
 
-1. **Patterns → Prompt** — Pattern descriptions are formatted into the LLM prompt.
-2. **LLM → Code** — The model generates code snippets targeting these patterns.
-3. **Code → Checkers** — Each snippet is run through mypy, pyrefly, ty, and zuban.
-4. **Checkers → Filter** — Only snippets where checkers *disagree* are kept.
+## Examples that actually trigger disagreements
 
-## Example Code That Triggers Disagreements
-
-### Protocol with default argument values (`protocol-defaults`)
+**Protocol with a default value (`protocol-defaults`):**
 
 ```python
 from typing import Protocol
@@ -166,12 +139,12 @@ class Circle:
 def render(shape: Drawable) -> None:
     shape.draw()
 
-render(Circle())  # Does Circle satisfy Drawable? Checkers disagree.
+render(Circle())  # does Circle satisfy Drawable? checkers disagree.
 ```
 
-Some checkers require the default value to match exactly while others only check the signature shape.
+Some checkers require the default to match exactly; others only check the signature shape.
 
-### TypedDict with mixed Required/NotRequired (`typed-dict-total`)
+**TypedDict with mixed Required/NotRequired (`typed-dict-total`):**
 
 ```python
 from typing import TypedDict, Required, NotRequired
@@ -181,18 +154,16 @@ class Base(TypedDict, total=False):
     age: int
 
 class Strict(Base):
-    name: Required[str]  # Override: make name required
+    name: Required[str]  # override: make name required
     email: NotRequired[str]
 
 def greet(person: Strict) -> str:
     return f"Hello, {person['name']}"
 
-greet({"name": "Alice"})  # Is 'age' required or optional here?
+greet({"name": "Alice"})  # is 'age' required or optional here?
 ```
 
-The interaction between `total=False` on the base and `Required` on the subclass creates ambiguity — checkers disagree on which keys are mandatory.
-
-### Final attribute overridden by property (`final-override`)
+**Final attribute overridden by a property (`final-override`):**
 
 ```python
 from typing import Final
@@ -202,15 +173,15 @@ class Config:
 
 class CustomConfig(Config):
     @property
-    def max_retries(self) -> int:  # Override Final with a property
+    def max_retries(self) -> int:  # overriding Final with a property
         return 5
 ```
 
-Is a property an "override" of a `Final` attribute? Some checkers say yes (error), others say no (a descriptor is a different mechanism).
+Is a property an "override" of a `Final` attribute? Depends who you ask.
 
-## Adding a New Pattern
+## Adding a pattern
 
-To add a pattern, append a new `DivergencePattern` to the `PATTERNS` list in `src/tc_disagreement/patterns.py`:
+Append one to the `PATTERNS` list in `src/pytifex/patterns.py`:
 
 ```python
 PATTERNS = [
@@ -224,11 +195,10 @@ PATTERNS = [
 ]
 ```
 
-The new pattern is automatically picked up by `build_expert_prompt` and included in future LLM generation runs. No other changes are needed.
+That's it — `build_expert_prompt` picks it up automatically on the next run, no other changes needed.
 
-When choosing a new pattern, look for:
+Good places to look for new ones:
 
-- **Closed issues** in [mypy](https://github.com/python/mypy/issues), [ty](https://github.com/astral-sh/ty/issues), or [pyrefly](https://github.com/facebook/pyrefly/issues) where the fix was controversial or spec-dependent.
-- **PEP sections** with phrases like "implementations may choose to…" or "this is left unspecified."
-- **Areas where PEPs interact** — e.g., `ParamSpec` + `Protocol`, `TypedDict` + `Generic`.
-
+- Closed issues on [mypy](https://github.com/python/mypy/issues), [ty](https://github.com/astral-sh/ty/issues), or [pyrefly](https://github.com/facebook/pyrefly/issues) where the fix itself was controversial.
+- PEP wording like "implementations may choose to…" or "this is left unspecified."
+- Where two PEPs interact — `ParamSpec` + `Protocol`, `TypedDict` + `Generic`, that kind of thing.

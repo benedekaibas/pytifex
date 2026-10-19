@@ -119,21 +119,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#architecture" id="toc-architecture" class="nav-link active" data-scroll-target="#architecture">Architecture</a>
   <ul class="collapse">
-  <li><a href="#system-overview" id="toc-system-overview" class="nav-link" data-scroll-target="#system-overview">System Overview</a></li>
-  <li><a href="#pipeline-flow" id="toc-pipeline-flow" class="nav-link" data-scroll-target="#pipeline-flow">Pipeline Flow</a>
+  <li><a href="#pipeline-flow-pipeline.py" id="toc-pipeline-flow-pipeline.py" class="nav-link" data-scroll-target="#pipeline-flow-pipeline.py">Pipeline flow (<code>pipeline.py</code>)</a>
   <ul class="collapse">
-  <li><a href="#step-0-seed-mining" id="toc-step-0-seed-mining" class="nav-link" data-scroll-target="#step-0-seed-mining">Step 0 — Seed Mining</a></li>
-  <li><a href="#step-1-code-generation" id="toc-step-1-code-generation" class="nav-link" data-scroll-target="#step-1-code-generation">Step 1 — Code Generation</a></li>
-  <li><a href="#step-2-type-checker-execution" id="toc-step-2-type-checker-execution" class="nav-link" data-scroll-target="#step-2-type-checker-execution">Step 2 — Type Checker Execution</a></li>
-  <li><a href="#step-3-refinement" id="toc-step-3-refinement" class="nav-link" data-scroll-target="#step-3-refinement">Step 3 — Refinement</a></li>
-  <li><a href="#step-4-evaluation" id="toc-step-4-evaluation" class="nav-link" data-scroll-target="#step-4-evaluation">Step 4 — Evaluation</a></li>
+  <li><a href="#step-0-seed-mining-github_issues.py" id="toc-step-0-seed-mining-github_issues.py" class="nav-link" data-scroll-target="#step-0-seed-mining-github_issues.py">Step 0 — seed mining (<code>github_issues.py</code>)</a></li>
+  <li><a href="#step-1-code-generation-prompts.py-agent.py" id="toc-step-1-code-generation-prompts.py-agent.py" class="nav-link" data-scroll-target="#step-1-code-generation-prompts.py-agent.py">Step 1 — code generation (<code>prompts.py</code>, <code>agent.py</code>)</a></li>
+  <li><a href="#step-2-type-checker-execution-delegates-to-run_checkers.py" id="toc-step-2-type-checker-execution-delegates-to-run_checkers.py" class="nav-link" data-scroll-target="#step-2-type-checker-execution-delegates-to-run_checkers.py">Step 2 — type checker execution (delegates to <code>run_checkers.py</code>)</a></li>
+  <li><a href="#step-3-refinement" id="toc-step-3-refinement" class="nav-link" data-scroll-target="#step-3-refinement">Step 3 — refinement</a></li>
+  <li><a href="#step-4-evaluation-comprehensive_eval.py" id="toc-step-4-evaluation-comprehensive_eval.py" class="nav-link" data-scroll-target="#step-4-evaluation-comprehensive_eval.py">Step 4 — evaluation (<code>comprehensive_eval.py</code>)</a></li>
   </ul></li>
-  <li><a href="#evaluation-system-comprehensive_eval.py" id="toc-evaluation-system-comprehensive_eval.py" class="nav-link" data-scroll-target="#evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</a>
-  <ul class="collapse">
-  <li><a href="#tier-1-runtime-crash-detection" id="toc-tier-1-runtime-crash-detection" class="nav-link" data-scroll-target="#tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</a></li>
-  <li><a href="#tier-2-hypothesis-property-based-testing" id="toc-tier-2-hypothesis-property-based-testing" class="nav-link" data-scroll-target="#tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</a></li>
-  <li><a href="#disclaimer" id="toc-disclaimer" class="nav-link" data-scroll-target="#disclaimer">Disclaimer</a></li>
-  </ul></li>
+  <li><a href="#other-evaluation-code-that-exists-but-isnt-wired-in" id="toc-other-evaluation-code-that-exists-but-isnt-wired-in" class="nav-link" data-scroll-target="#other-evaluation-code-that-exists-but-isnt-wired-in">Other evaluation code that exists but isn’t wired in</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -146,85 +140,51 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="architecture" class="level1">
 <h1>Architecture</h1>
-<p>Pytifex is a hybrid system that orchestrates LLM-based code generation with local type-checker execution and objective two-tier evaluation. This page walks through every major subsystem so you can orient yourself in the codebase quickly.</p>
-<hr>
-<section id="system-overview" class="level2">
-<h2 class="anchored" data-anchor-id="system-overview">System Overview</h2>
-<p>Pytifex splits work between two execution domains:</p>
+<p>Pytifex splits its work across two places: an LLM API for generating and refining code, and your local machine for everything that has to be objectively true — fetching GitHub issues, running the actual type checker binaries, and executing the generated code to see what happens at runtime.</p>
+<p>The important thing to understand up front: <strong>type checker output is always real</strong>. Pytifex never asks an LLM to simulate what mypy or pyrefly would say. Every status in <code>results.json</code> comes from an actual subprocess call to the real binary.</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 32%">
-<col style="width: 68%">
+<col style="width: 38%">
+<col style="width: 61%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Domain</th>
-<th>Responsibilities</th>
+<th>Where</th>
+<th>What happens there</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><strong>LLM API</strong></td>
-<td>Code generation and refinement of non-divergent examples (Gemini, OpenAI, Cohere, or any OpenAI-compatible local server)</td>
+<td>LLM API</td>
+<td>generating code, refining examples that didn’t diverge</td>
 </tr>
 <tr class="even">
-<td><strong>Local machine</strong></td>
-<td>GitHub issue fetching, type-checker execution via <code>subprocess</code>, runtime crash detection, and Hypothesis property-based testing</td>
+<td>Local machine</td>
+<td>GitHub mining, running mypy/pyrefly/zuban/ty, executing code to find runtime proof</td>
 </tr>
 </tbody>
 </table>
-<blockquote class="blockquote">
-<p><strong>Important:</strong> Type-checker outputs are <em>real</em>. Every status comes from actually invoking <code>mypy</code>, <code>pyrefly</code>, <code>ty</code>, and <code>zuban</code> in a subprocess — never from LLM simulation.</p>
-</blockquote>
-<pre class="text"><code>┌──────────────────────────────────────────────────────────┐
-│                       LLM API                            │
-│  ┌─────────────┐  ┌────────────┐                         │
-│  │ Code Gen    │  │ Refinement │                         │
-│  └─────────────┘  └────────────┘                         │
-└────────────────────────┬─────────────────────────────────┘
-                         │ API calls
-┌────────────────────────▼─────────────────────────────────┐
-│                   Local Machine                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ GitHub Issue │  │ Type Checker │  │  Two-Tier      │  │
-│  │   Mining     │  │  Execution   │  │  Evaluation    │  │
-│  └──────────────┘  └──────────────┘  └────────────────┘  │
-└──────────────────────────────────────────────────────────┘</code></pre>
-<hr>
+<section id="pipeline-flow-pipeline.py" class="level2">
+<h2 class="anchored" data-anchor-id="pipeline-flow-pipeline.py">Pipeline flow (<code>pipeline.py</code>)</h2>
+<section id="step-0-seed-mining-github_issues.py" class="level3">
+<h3 class="anchored" data-anchor-id="step-0-seed-mining-github_issues.py">Step 0 — seed mining (<code>github_issues.py</code>)</h3>
+<p>Pulls closed, confirmed bug-fix issues from <code>python/mypy</code>, <code>facebook/pyrefly</code>, <code>astral-sh/ty</code>, <code>microsoft/pyright</code>, and <code>zubanls/zuban</code>. “Confirmed” means <code>state == "closed"</code> and <code>state_reason != "not_planned"</code> — this is the actual filter, straight from <code>github_issues.py</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_confirmed_bug(issue: <span class="bu">dict</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state"</span>) <span class="op">!=</span> <span class="st">"closed"</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state_reason"</span>) <span class="op">==</span> <span class="st">"not_planned"</span>:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Code gets pulled out of fenced <code>```python</code> blocks, and for pyrefly specifically, out of its sandbox links too (those encode the source as base64 inside the URL).</p>
 </section>
-<section id="pipeline-flow" class="level2">
-<h2 class="anchored" data-anchor-id="pipeline-flow">Pipeline Flow</h2>
-<p>The core pipeline lives in <code>pipeline.py</code> and runs five sequential steps.</p>
-<section id="step-0-seed-mining" class="level3">
-<h3 class="anchored" data-anchor-id="step-0-seed-mining">Step 0 — Seed Mining</h3>
-<p><strong>Module:</strong> <code>github_issues.py</code></p>
-<p>Fetches closed bug-fix issues from upstream type-checker repositories via the GitHub REST API:</p>
-<ul>
-<li><code>python/mypy</code></li>
-<li><code>facebook/pyrefly</code></li>
-<li><code>astral-sh/ty</code></li>
-<li><code>microsoft/pyright</code></li>
-<li><code>zubanls/zuban</code></li>
-</ul>
-<p>Only confirmed bugs are kept — issues whose <code>state_reason</code> is <code>"not_planned"</code> are filtered out. Python code blocks are extracted from issue bodies with a fenced-code-block regex. For Pyrefly, sandbox URLs are also handled by base64-decoding the encoded source.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Simplified seed extraction logic</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> issue <span class="kw">in</span> fetch_closed_issues(repo, label<span class="op">=</span><span class="st">"bug"</span>):</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue[<span class="st">"state_reason"</span>] <span class="op">==</span> <span class="st">"not_planned"</span>:</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    snippets <span class="op">=</span> extract_python_blocks(issue[<span class="st">"body"</span>])</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    seeds.extend(snippets)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="step-1-code-generation" class="level3">
-<h3 class="anchored" data-anchor-id="step-1-code-generation">Step 1 — Code Generation</h3>
-<p><strong>Modules:</strong> <code>prompts.py</code>, <code>agent.py</code></p>
-<p>A batch of 3–5 seed examples is shown to the LLM with a request to generate <em>new</em> variations that are likely to trigger type-checker disagreements.</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># prompts.py</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> build_seed_based_prompt(seeds[:<span class="dv">5</span>])</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Falls back when no seeds are available</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> seeds:</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_expert_prompt()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The <code>agent.py</code> module provides three provider backends, each as a Pydantic model:</p>
+<section id="step-1-code-generation-prompts.py-agent.py" class="level3">
+<h3 class="anchored" data-anchor-id="step-1-code-generation-prompts.py-agent.py">Step 1 — code generation (<code>prompts.py</code>, <code>agent.py</code>)</h3>
+<p>3-5 seed examples get shown to the LLM with a request to generate new variations likely to cause a disagreement. If there are no seeds (<code>--no-github</code>, or GitHub fetch failed), it falls back to a prompt built purely from the pattern descriptions in <code>patterns.py</code>. This is the actual branch in <code>pipeline.py</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> seed_examples:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_seed_based_prompt(batch_seeds, batch_size)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_expert_prompt(batch_size)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>agent.py</code> has three provider backends, each a small Pydantic model with a <code>.communicate()</code> method:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 24%">
@@ -235,90 +195,67 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="header">
 <th>Class</th>
 <th>Provider</th>
-<th>Activation</th>
+<th>How it’s picked</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>GetAccessToGemini</code></td>
-<td>Google Gemini</td>
-<td>default; model name starts with <code>gemini-</code></td>
-</tr>
-<tr class="even">
 <td><code>GetAccessToCohere</code></td>
 <td>Cohere</td>
-<td>model name starts with <code>command</code></td>
+<td><code>--model</code> starts with <code>command</code></td>
+</tr>
+<tr class="even">
+<td><code>GetAccessToOpenAI</code></td>
+<td>any OpenAI-compatible server</td>
+<td><code>--openai-base-url</code> is set</td>
 </tr>
 <tr class="odd">
-<td><code>GetAccessToOpenAI</code></td>
-<td>OpenAI-compatible</td>
-<td><code>--openai-base-url</code> is set</td>
+<td><code>GetAccessToGemini</code></td>
+<td>Google Gemini</td>
+<td>default fallback — leftover, planned for removal</td>
 </tr>
 </tbody>
 </table>
-<p><code>GetAccessToOpenAI</code> uses the standard <code>/v1/chat/completions</code> endpoint and works with the real OpenAI API, local llama-server instances, Ollama, vLLM, or any compatible server.</p>
+<p>Right now, <code>provider_for_model()</code> falls back to Gemini whenever neither of the two conditions above matches, which is why omitting <code>--model</code>/<code>--openai-base-url</code> silently uses Gemini. That default is on its way out; don’t build anything that depends on it.</p>
+<p><code>GetAccessToOpenAI</code> just hits <code>{base_url}/chat/completions</code> — that’s it. It works against the real OpenAI API or any local server (llama-server, Ollama, vLLM) that speaks the same protocol.</p>
 </section>
-<section id="step-2-type-checker-execution" class="level3">
-<h3 class="anchored" data-anchor-id="step-2-type-checker-execution">Step 2 — Type Checker Execution</h3>
-<p><strong>Module:</strong> <code>pipeline.py</code> (delegates to <code>run_checkers.py</code>)</p>
-<p>Every generated example is run through all four checkers. The pipeline compares the resulting statuses and retains only <em>disagreements</em> — cases where at least two checkers produce different verdicts.</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>statuses <span class="op">=</span> run_all_checkers(example)  <span class="co"># e.g. {"mypy": "error", "pyrefly": "ok", ...}</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">len</span>(<span class="bu">set</span>(statuses.values())) <span class="op">&gt;</span> <span class="dv">1</span>:</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    divergent_examples.append(example)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="step-2-type-checker-execution-delegates-to-run_checkers.py" class="level3">
+<h3 class="anchored" data-anchor-id="step-2-type-checker-execution-delegates-to-run_checkers.py">Step 2 — type checker execution (delegates to <code>run_checkers.py</code>)</h3>
+<p>Every generated example runs through all four checkers. If the resulting statuses aren’t all the same, it’s a disagreement and gets kept:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> has_disagreement(results: <span class="bu">dict</span>[<span class="bu">str</span>, CheckerResult]) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    statuses <span class="op">=</span> [r.status <span class="cf">for</span> r <span class="kw">in</span> results.values()]</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">len</span>(<span class="bu">set</span>(statuses)) <span class="op">&gt;</span> <span class="dv">1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="step-3-refinement" class="level3">
-<h3 class="anchored" data-anchor-id="step-3-refinement">Step 3 — Refinement</h3>
-<p><strong>Module:</strong> <code>pipeline.py</code></p>
-<p>Examples that did <em>not</em> diverge are sent back to the LLM together with the real checker feedback. The refinement prompt encourages the model to tweak the code so that it triggers a disagreement.</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> attempt <span class="kw">in</span> <span class="bu">range</span>(max_refinements):</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    refined <span class="op">=</span> agent.generate(build_refinement_prompt(example, statuses))</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    new_statuses <span class="op">=</span> run_all_checkers(refined)</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">set</span>(new_statuses.values())) <span class="op">&gt;</span> <span class="dv">1</span>:</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        divergent_examples.append(refined)</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<h3 class="anchored" data-anchor-id="step-3-refinement">Step 3 — refinement</h3>
+<p>Examples where all four checkers agreed get sent back to the LLM along with the real checker output, with a prompt asking it to tweak the code minimally so it actually diverges. This runs up to <code>--max-refinements</code> times per example, feeding the latest refined attempt back in as context for the next one:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(max_attempts):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    prompt <span class="op">=</span> build_refinement_prompt_for_example(current)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> agent.predict(prompt)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    refined <span class="op">=</span> parse_into_example(response)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    refined.results <span class="op">=</span> run_all_checkers(refined.code)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> has_disagreement(refined.results):</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> refined</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> refined  <span class="co"># next attempt refines this one, not the original</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="step-4-evaluation" class="level3">
-<h3 class="anchored" data-anchor-id="step-4-evaluation">Step 4 — Evaluation</h3>
-<p><strong>Module:</strong> <code>comprehensive_eval.py</code></p>
-<p>All divergent examples are passed through a multi-tiered evaluation system that determines which checker is correct. See the next section for details.</p>
-<hr>
+<section id="step-4-evaluation-comprehensive_eval.py" class="level3">
+<h3 class="anchored" data-anchor-id="step-4-evaluation-comprehensive_eval.py">Step 4 — evaluation (<code>comprehensive_eval.py</code>)</h3>
+<p>Every surviving disagreement gets run through a two-phase evaluation that decides which checker was correct. Covered in full on the <a href="./evaluation.html">Evaluation</a> page — short version: Phase 1 catches runtime crashes, Phase 2 uses Hypothesis + beartype to fuzz the actual functions with type-conformant inputs. (The code still names these <code>tier1</code>/<code>tier2</code> internally — see the note at the top of the Evaluation page.)</p>
 </section>
 </section>
-<section id="evaluation-system-comprehensive_eval.py" class="level2">
-<h2 class="anchored" data-anchor-id="evaluation-system-comprehensive_eval.py">Evaluation System (<code>comprehensive_eval.py</code>)</h2>
-<p>Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.</p>
-<section id="tier-1-runtime-crash-detection" class="level3">
-<h3 class="anchored" data-anchor-id="tier-1-runtime-crash-detection">Tier 1 — Runtime Crash Detection</h3>
-<p>Executes the source code and catches runtime exceptions that signal a genuine type error (<code>TypeError</code>, <code>KeyError</code>, <code>AttributeError</code>). The tool walks the <strong>full traceback</strong> including exception chains (<code>__cause__</code> / <code>__context__</code>) and isolates <code>try</code>/<code>except</code> bodies to surface swallowed errors.</p>
-<p>A crash proves a <strong>false negative</strong>: any checker that said “OK” is definitively wrong.</p>
-<p><strong>Confidence:</strong> 0.95</p>
-</section>
-<section id="tier-2-hypothesis-property-based-testing" class="level3">
-<h3 class="anchored" data-anchor-id="tier-2-hypothesis-property-based-testing">Tier 2 — Hypothesis Property-Based Testing</h3>
-<p><strong>Module:</strong> <code>hypothesis_tier2.py</code></p>
-<p>Extracts function signatures via AST inspection, builds <a href="https://hypothesis.readthedocs.io/">Hypothesis</a> strategies from type hints, and runs <code>@given</code> tests with generated inputs.</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># hypothesis_tier2.py (conceptual)</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>sig <span class="op">=</span> extract_signature(func_node)           <span class="co"># AST-based</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>strategy <span class="op">=</span> build_strategy_from_hints(sig)    <span class="co"># maps hints → st.*</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>beartyped_fn <span class="op">=</span> beartype(fn)                  <span class="co"># enforce input conformance at call time</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="at">@given</span>(strategy)</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> test(args):</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> beartyped_fn(<span class="op">*</span>args)             <span class="co"># crash ⇒ false negative</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    check_type(result, return_hint)          <span class="co"># success ⇒ success witness</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>False negatives (Tier 2a):</strong> If a call crashes despite inputs being type-conformant (confirmed by <a href="https://beartype.readthedocs.io/">beartype</a>), that is a proven type bug. Any checker that said “OK” missed it.</p>
-<p><strong>False positives (Tier 2b):</strong> If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed <code>typeguard.check_type()</code> — those calls are recorded as <strong>success witnesses</strong>. A success witness proves the code is well-typed; any checker that said “error” has a proven false positive.</p>
-<p><strong>Confidence:</strong> 0.85 (false negatives) / 0.90 (false positives, beartype-enforced)</p>
-<hr>
-</section>
-<section id="disclaimer" class="level3">
-<h3 class="anchored" data-anchor-id="disclaimer">Disclaimer</h3>
-<p>Since Pytifex is a research tool under active development, the architecture may evolve in future versions.</p>
+<section id="other-evaluation-code-that-exists-but-isnt-wired-in" class="level2">
+<h2 class="anchored" data-anchor-id="other-evaluation-code-that-exists-but-isnt-wired-in">Other evaluation code that exists but isn’t wired in</h2>
+<p>A few modules in <code>src/pytifex/</code> implement additional evaluation strategies that aren’t called from the main <code>evaluate_comprehensive()</code> path right now — they’re either exploratory, used by other scripts, or superseded by the two-phase system:</p>
+<ul>
+<li><code>source_analysis.py</code> — pure AST analysis (no execution) that flags ~20 named PEP violations (LSP overrides, Protocol instantiation, Final overrides, TypedDict inheritance, etc.). It’s imported by <code>comprehensive_eval.run_tier3()</code>, but <code>run_tier3()</code> itself isn’t called from <code>evaluate_comprehensive()</code>.</li>
+<li><code>static_tier4.py</code> — static flow analysis (import availability by Python version, variance violations, narrowing flow). Standalone, not called back into the main pipeline.</li>
+<li><code>oracle.py</code> — a cleaner architecture for matching <code>source_analysis.py</code> findings against parsed checker diagnostics.</li>
+<li><code>checker_claim_verification.py</code> — parses a checker’s specific diagnostic message (e.g.&nbsp;mypy’s <code>Argument 1 to "f" has incompatible type "int"; expected "str"</code>), synthesizes the exact “bad” value it’s complaining about, and calls the function with it to see if it actually crashes.</li>
+<li><code>scoring.py</code> — precision/recall/F1 scoring across tiers, used for writing up results rather than for the live pipeline.</li>
+</ul>
+<p>If you’re trying to understand why a verdict came out a certain way, start with <code>comprehensive_eval.py</code> — that’s the only evaluation code that’s actually on the critical path.</p>
 
 
-</section>
 </section>
 </section>
 

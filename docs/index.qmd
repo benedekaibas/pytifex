@@ -1,25 +1,53 @@
-# Pytifex — Automated Differential Testing for Python Type Checkers
+# Overview
 
 [![GitHub](https://img.shields.io/badge/github-pytifex-blue?logo=github)](https://github.com/benedekaibas/pytifex)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/benedekaibas/pytifex-demo/blob/main/LICENSE)
 
-Pytifex automatically discovers disagreements between Python type checkers by mining real bugs from type checker repositories, generating targeted test cases with an LLM, and establishing ground truth through multi-tiered evaluation.
+Pytifex finds cases where Python type checkers disagree with each other. It mines real bug reports from type checker repositories, uses them as seeds for an LLM to generate new code, runs that code through four checkers, and keeps only the examples where the checkers don't agree. Then it figures out which checker was actually right, using runtime execution as the ground truth.
 
-## How It Works
+## What `uv run pytifex` actually does, in order
 
-```text
- Mine bugs from        Generate code         Run 4 type           Evaluate which
- GitHub issues    →    variations via    →    checkers on      →   checker is
- (mypy, ty, ...)       Gemini LLM            each example         correct
+**1. Mine seeds** — once, up front, unless `--no-github`. Pulls closed, confirmed bug-fix issues straight from GitHub:
+
+```python
+# github_issues.py
+def is_confirmed_bug(issue: dict) -> bool:
+    if issue.get("state") != "closed":
+        return False
+    if issue.get("state_reason") == "not_planned":
+        return False
+    return True
 ```
 
-1. **Mine** — Fetch real bug reports (false positives, false negatives) from mypy, pyrefly, ty, and pyright GitHub repositories
-2. **Mutate** — Use the bugs as seeds for Gemini to generate new code targeting similar edge cases
-3. **Test** — Run mypy, pyrefly, zuban, and ty on each generated example; keep only disagreements
-4. **Evaluate** — Determine which checker is correct using runtime crash detection, Hypothesis testing, PEP spec matching, and AST analysis
+**2. Generate** — a batch of new code gets written by the LLM, seeded from those issues (or from the built-in patterns if there are no seeds):
 
-## Type Checkers Tested
+```python
+# pipeline.py
+if seed_examples:
+    prompt = build_seed_based_prompt(batch_seeds, batch_size)
+else:
+    prompt = build_expert_prompt(batch_size)
+```
+
+**3. Check** — every generated example runs through mypy, pyrefly, zuban, and ty.
+
+**4. Filter** — a disagreement is any example where the checkers don't all return the same status:
+
+```python
+# pipeline.py
+def has_disagreement(results: dict[str, CheckerResult]) -> bool:
+    statuses = [r.status for r in results.values()]
+    return len(set(statuses)) > 1
+```
+
+Disagreements get kept as-is. Examples where all four checkers agreed get one shot at a fix: sent back to the LLM with the real checker output attached, up to `--max-refinements` times. Steps 2–4 repeat in batches until `--num-examples` disagreements are found, or `--max-attempts` runs out.
+
+**5. Evaluate** — everything that survived gets saved to `generated_examples/<timestamp>/`, then run through two phases: Phase 1 checks whether the code crashes at runtime, Phase 2 fuzzes it with Hypothesis-generated, type-conformant inputs. Whichever phase finds concrete proof decides which checker was right. If neither does, an LLM judge gets the final say.
+
+A verdict is never guessed upfront — it only gets issued once there's an actual crash or an actual successful run behind it.
+
+## Type checkers tested
 
 | Checker | Version |
 |---------|---------|
@@ -28,24 +56,26 @@ Pytifex automatically discovers disagreements between Python type checkers by mi
 | [zuban](https://pypi.org/project/zuban/) | 0.3.0 |
 | [ty](https://github.com/astral-sh/ty) | 0.0.1-alpha.32 |
 
-## Quick Start
+## Quick start
 
 ```bash
-pip install pytifex
+git clone https://github.com/benedekaibas/pytifex
+cd pytifex
 
-export GEMINI_API_KEY=your_key
+export COHERE_API_KEY=your_key
 
-uv run pytifex
+uv run --extra dev pytifex --model command-a-03-2025
 ```
 
-> **Note:** Pytifex is a research tool developed for a senior comprehensive project. It implements a bug-seeded mutation methodology for proactively finding type checker bugs before users encounter them.
+`--extra dev` is what pulls in mypy, pyrefly, zuban, and ty — they're an optional dependency group in `pyproject.toml`, not a base dependency, so a plain `uv run pytifex` won't install them.
 
-## Documentation
+> Pytifex is a research tool I built for a senior comprehensive project. The idea is to find type checker bugs proactively, before a user runs into them in production.
 
-- **[Getting Started](getting-started.qmd)** — Installation, setup, and first run
-- **[Architecture](architecture.qmd)** — System design, pipeline flow, and file structure
-- **[Bug Mining & Mutation](bug-mining.qmd)** — How seeds are mined from GitHub and mutated into test cases
-- **[Evaluation System](evaluation.qmd)** — Multi-tiered evaluation: runtime, Hypothesis, PEP specs, static analysis
-- **[Type Checkers](checkers.qmd)** — How checkers are invoked, output parsed, and how to add new ones
-- **[Divergence Patterns](patterns.qmd)** — The 10 built-in edge-case patterns and how to add more
+## Where to go next
 
+- **[Getting Started](getting-started.qmd)** — installation, setup, and first run.
+- **[Architecture](architecture.qmd)** — system design, pipeline flow, and file structure.
+- **[Bug Mining & Mutation](bug-mining.qmd)** — how seeds are mined from GitHub and mutated into test cases.
+- **[Evaluation System](evaluation.qmd)** — the two-phase evaluation: runtime crash detection and Hypothesis fuzzing.
+- **[Type Checkers](checkers.qmd)** — how checkers are invoked, output parsed, and how to add new ones.
+- **[Divergence Patterns](patterns.qmd)** — the 10 built-in edge-case patterns and how to add more.
