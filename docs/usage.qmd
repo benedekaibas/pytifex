@@ -1,97 +1,84 @@
 # Usage
 
-Run from the project root directory.
+Run everything from the project root, with `--extra dev` so the type checkers are actually on `PATH` inside uv's environment.
 
 ```bash
-# Full pipeline: mine → generate → filter → evaluate
-uv run pytifex
+# full pipeline: mine -> generate -> filter -> evaluate
+uv run --extra dev pytifex --model command-a-03-2025
 
-# Target a specific number of disagreements
-uv run pytifex --num-examples 10
+# stop once you've found N disagreements
+uv run --extra dev pytifex --model command-a-03-2025 --num-examples 10
 
-# Use a more capable Gemini model
-uv run pytifex --model gemini-2.5-pro
+# a local model behind an OpenAI-compatible server
+uv run --extra dev pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
 
-# Use a local model via llama-server (OpenAI-compatible API)
-uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
+# the real OpenAI API
+uv run --extra dev pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
 
-# Use the real OpenAI API
-uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+# skip GitHub seed fetching, generate from patterns instead
+uv run --extra dev pytifex --model command-a-03-2025 --no-github
 
-# Skip GitHub seed fetching
-uv run pytifex --no-github
-
-# Verbose output
-uv run pytifex -v
+# verbose output
+uv run --extra dev pytifex --model command-a-03-2025 -v
 ```
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `uv run pytifex` | Full pipeline (generate + evaluate) |
-| `uv run pytifex generate` | Generate disagreements only |
-| `uv run pytifex check` | Run type checkers on existing examples |
-| `uv run pytifex eval` | Evaluate existing results |
+| Command | Does |
+|---------|------|
+| `uv run --extra dev pytifex` | full pipeline (generate + evaluate) |
+| `uv run --extra dev pytifex generate` | generate disagreements only |
+| `uv run --extra dev pytifex check` | run the type checkers on examples that already exist |
+| `uv run --extra dev pytifex eval` | evaluate results that already exist |
 
 ## Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--num-examples N` | `5` | Target number of disagreements to find |
-| `--batch-size N` | `15` | Examples to generate per LLM batch |
-| `--max-attempts N` | `5` | Maximum generation attempts |
-| `--max-refinements N` | `2` | Refinement attempts per non-divergent example |
-| `--model MODEL` | `gemini-2.5-flash` | LLM model name (see [LLM Providers](#llm-providers) below) |
-| `--openai-base-url URL` | — | Base URL for an OpenAI-compatible API endpoint |
-| `--eval-method METHOD` | `comprehensive` | Evaluation method |
-| `--no-github` | — | Skip fetching seeds from GitHub issues |
-| `-v, --verbose` | — | Show all examples, not just disagreements |
+| Option | Default | Does |
+|--------|---------|------|
+| `--num-examples N` | `5` | target number of disagreements to find |
+| `--batch-size N` | `15` | examples generated per LLM call |
+| `--max-attempts N` | `5` | generation rounds before giving up |
+| `--max-refinements N` | `2` | refinement passes per example that didn't diverge |
+| `--model MODEL` | `gemini-2.5-flash` (pending removal — always pass this explicitly) | model name, see providers below |
+| `--openai-base-url URL` | — | base URL for an OpenAI-compatible endpoint |
+| `--eval-method METHOD` | `comprehensive` | evaluation method |
+| `--no-github` | — | skip GitHub seed mining |
+| `-v, --verbose` | — | show every example, not just the disagreements |
 
-## LLM Providers
+## Providers
 
-Pytifex supports three LLM providers. The provider is selected automatically based on `--model` and `--openai-base-url`.
+The provider is picked automatically from `--model` and `--openai-base-url` — there's no separate `--provider` flag.
 
-### Google Gemini (default)
+### OpenAI-compatible
 
-Requires `GEMINI_API_KEY`.
+Triggered by passing `--openai-base-url`, regardless of model name. Works with real OpenAI, [llama-server](https://github.com/ggml-org/llama.cpp), Ollama, vLLM, or any server speaking `/v1/chat/completions`.
 
 ```bash
-export GEMINI_API_KEY=your_key
-uv run pytifex --model gemini-2.5-flash    # default
-uv run pytifex --model gemini-2.5-pro
-uv run pytifex --model gemini-2.5-flash-lite
+# real OpenAI
+export OPENAI_API_KEY=your_key
+uv run --extra dev pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+
+# a local model, no key needed unless the server requires one
+uv run --extra dev pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
+
+# Ollama
+uv run --extra dev pytifex --model llama3 --openai-base-url http://localhost:11434/v1
 ```
+
+If `OPENAI_API_KEY` isn't set and the server doesn't require auth, that's fine — it gets sent as an empty string.
 
 ### Cohere
 
-Requires `COHERE_API_KEY` (or `CO_API_KEY`). Model names starting with `command` are automatically routed to Cohere.
+Needs `COHERE_API_KEY` or `CO_API_KEY`, triggered by any `command-*` model name.
 
 ```bash
-export COHERE_API_KEY=your_key
-uv run pytifex --model command-a-03-2025
-uv run pytifex --model command-r-plus-08-2024
+uv run --extra dev pytifex --model command-a-03-2025
+uv run --extra dev pytifex --model command-r-plus-08-2024
 ```
 
-### OpenAI-compatible API
+If you leave both `--model` and `--openai-base-url` unset, the CLI currently falls back to Gemini internally — that's a leftover default that's going away, not a supported path. Always pass one of the two options above.
 
-Activated by passing `--openai-base-url`. Works with the real OpenAI API, local models via [llama-server](https://github.com/ggml-org/llama.cpp), Ollama, vLLM, and any other server that implements the `/v1/chat/completions` endpoint.
-
-```bash
-# Real OpenAI API
-export OPENAI_API_KEY=your_key
-uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
-
-# Local model via llama-server (no API key needed)
-uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
-
-# Ollama
-uv run pytifex --model llama3 --openai-base-url http://localhost:11434/v1
-```
-
-`OPENAI_API_KEY` is read from the environment when set; for local servers that don't require authentication it can be left unset.
-
-## Example Output
+## What a run looks like
 
 ```
 ============================================================
@@ -100,7 +87,7 @@ PYTIFEX - Full Pipeline (with disagreement filtering)
 
 [STEP 1/2] Generating examples with disagreement filtering...
 Target: 2 disagreement examples
-Using model: gemini-2.5-flash
+Using model: command-a-03-2025
 
 [Attempt 1/5] Generating batch of 15...
   Using 5 GitHub issue seeds
@@ -112,12 +99,12 @@ Using model: gemini-2.5-flash
 GENERATION COMPLETE: 2 disagreements from 19 total examples
 ```
 
-## Troubleshooting
+## If something goes wrong
 
-**No disagreements found** — Increase `--max-attempts` or `--batch-size`, or try `--model gemini-2.5-pro`.
+**No disagreements found** — try `--max-attempts` or `--batch-size` higher, or a more capable model.
 
-**GitHub rate limit errors** — Set `GITHUB_TOKEN`, or use `--no-github`.
+**GitHub rate limit errors** — set `GITHUB_TOKEN`, or just run with `--no-github`.
 
-**Type checker not found** — Use `uv run` (auto-installs), or manually `pip install mypy pyrefly zuban ty`.
+**"command not found" for a type checker** — you forgot `--extra dev`. Without it, `uv run pytifex` only installs pytifex's own two dependencies, not the checkers. Re-run with `uv run --extra dev pytifex ...`.
 
-**Local model not responding** — Check that your llama-server process is running and the port matches `--openai-base-url`. The model name passed to `--model` must match whatever name the server expects (check your server's `/v1/models` endpoint if unsure).
+**Local server not responding** — make sure the server process is actually up and the port in `--openai-base-url` matches. Double-check `--model` matches exactly what the server's `/v1/models` endpoint calls it — a mismatch there is the most common cause of a 404.

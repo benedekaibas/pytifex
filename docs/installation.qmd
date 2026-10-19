@@ -1,72 +1,58 @@
 # Installation
 
-## Prerequisites
+## What you need
 
-- **Python 3.12+**
-- [**uv**](https://docs.astral.sh/uv/) (recommended) or pip
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/)
 
 ## Setup
 
 ```bash
-pip install pytifex
+git clone https://github.com/benedekaibas/pytifex
+cd pytifex
 
-# Set an API key for your chosen LLM provider (see below)
-export GEMINI_API_KEY=your_gemini_api_key
+export COHERE_API_KEY=your_cohere_api_key   # or set up another provider, see below
 
-# Optional — higher GitHub API rate limits
+# optional, only raises GitHub rate limits
 export GITHUB_TOKEN=ghp_your_github_token
 
-# Run Pytifex
-uv run pytifex
+uv run --extra dev pytifex --model command-a-03-2025
 ```
 
-The type checkers (mypy, pyrefly, zuban, ty) are **automatically installed** by `uv` when you run the tool.
+`--extra dev` is what actually installs mypy, pyrefly, zuban, and ty — they're declared as an optional dependency group in `pyproject.toml`, not a base dependency. Leave it off and `uv run pytifex` only installs pytifex's own two dependencies; the checkers won't exist on `PATH` and every checker call fails.
 
-## Environment Variables
+## Environment variables
 
-| Variable | Required | Description |
+| Variable | When it's needed | What it's for |
 |----------|----------|-------------|
-| `GEMINI_API_KEY` | For Gemini models | Google Gemini API key |
-| `OPENAI_API_KEY` | For OpenAI API | OpenAI API key (not needed for local servers) |
-| `COHERE_API_KEY` | For Cohere models | Cohere API key (also accepted as `CO_API_KEY`) |
-| `GITHUB_TOKEN` | No | GitHub token for higher API rate limits (60 → 5,000 req/hour) |
+| `OPENAI_API_KEY` | Using `--openai-base-url` against an authenticated server | API key for OpenAI, or whatever token your local/lab server expects |
+| `COHERE_API_KEY` | Using a `command-*` model | Cohere API key (`CO_API_KEY` also works) |
+| `GITHUB_TOKEN` | Optional | Raises the GitHub API rate limit from 60 to 5,000 requests/hour |
 
-At least one LLM provider key is required unless you are using a local model server, in which case no key is needed.
+You need exactly one provider key, unless you're pointing at a local server with no auth — then you need none.
 
-## LLM Provider Setup
+## Setting up each provider
 
-### Google Gemini (default)
-
-Get a free API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+### OpenAI-compatible (real OpenAI, or any local/lab server)
 
 ```bash
-export GEMINI_API_KEY=your_key
-uv run pytifex
-```
-
-### OpenAI
-
-```bash
+# real OpenAI
 export OPENAI_API_KEY=your_key
-uv run pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+uv run --extra dev pytifex --model gpt-4o --openai-base-url https://api.openai.com/v1
+
+# a local server, no key needed unless it requires one
+uv run --extra dev pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
 ```
 
-### Local model (llama-server, Ollama, vLLM)
-
-No API key needed. Start your server, then point Pytifex at it:
-
-```bash
-# Example: llama.cpp llama-server
-# llama-server -m qwen3-6b.gguf --port 8080
-
-uv run pytifex --model qwen3-6b --openai-base-url http://localhost:8080/v1
-```
-
-Any server exposing a `/v1/chat/completions` endpoint is compatible.
+`--openai-base-url` forces this provider regardless of the model name — the model name just has to match what the server itself calls it.
 
 ### Cohere
 
 ```bash
 export COHERE_API_KEY=your_key
-uv run pytifex --model command-a-03-2025
+uv run --extra dev pytifex --model command-a-03-2025
 ```
+
+## One current gap
+
+If you omit both `--model` and `--openai-base-url`, the CLI falls back to Gemini — that's a hard-coded default in `main.py`/`agent.py` left over from an earlier version. It's planned to come out. Until it does, always pass a provider flag explicitly rather than leaving `--model` at its default.

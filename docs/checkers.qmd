@@ -1,17 +1,17 @@
 # Type Checkers
 
-Pytifex runs four Python type checkers and compares their results to find disagreements. This page covers which checkers are tested, how they're invoked, how their output is parsed, and how to add a new one.
+Pytifex runs four type checkers and compares their output to find disagreements. This page covers which checkers, how they get invoked, how their output gets parsed into "ok"/"error", and how to add a new one.
 
-## Supported Checkers
+## The four checkers
 
 | Checker | Version | Command | Project |
 |---------|---------|---------|---------|
-| **mypy** | 1.19.0 | `mypy <file>` | [mypy-lang.org](https://mypy-lang.org/) |
-| **pyrefly** | 0.60.0 | `pyrefly check <file>` | [github.com/facebook/pyrefly](https://github.com/facebook/pyrefly) |
-| **zuban** | 0.3.0 | `zuban check <file>` | [github.com/zubanls/zuban](https://github.com/zubanls/zuban) |
-| **ty** | 0.0.1-alpha.32 | `ty check <file>` | [github.com/astral-sh/ty](https://github.com/astral-sh/ty) |
+| mypy | 1.19.0 | `mypy <file>` | [mypy-lang.org](https://mypy-lang.org/) |
+| pyrefly | 0.44.2 | `pyrefly check <file>` | [github.com/facebook/pyrefly](https://github.com/facebook/pyrefly) |
+| zuban | 0.3.0 | `zuban check <file>` | [github.com/zubanls/zuban](https://github.com/zubanls/zuban) |
+| ty | 0.0.1-alpha.32 | `ty check <file>` | [github.com/astral-sh/ty](https://github.com/astral-sh/ty) |
 
-All four are configured in a single dict in [`config.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py):
+All four live in one dict in [`config.py`](https://github.com/benedekaibas/pytifex/blob/main/src/pytifex/config.py):
 
 ```python
 CHECKERS = {
@@ -22,11 +22,11 @@ CHECKERS = {
 }
 ```
 
-Each value is the argument list passed to `subprocess.run`.
+Each value is the argument list that gets handed to `subprocess.run`, with the file path appended.
 
-## How Checkers Are Invoked
+## How they get invoked
 
-The `run_checkers.py` module iterates over every `.py` file in a generation directory and shells out to each checker via `subprocess`:
+`run_checkers.py` walks every `.py` file in a generation directory and shells out to each checker:
 
 ```python
 def run_tool(command: list[str], filepath: str) -> str:
@@ -46,13 +46,13 @@ def run_tool(command: list[str], filepath: str) -> str:
         return f"Execution Error: {str(e)}"
 ```
 
-Key points:
+A few things worth knowing:
 
-- **`check=False`** — Pytifex never raises on a non-zero exit code. Many checkers exit non-zero when they find type errors, so the return code alone doesn't tell us much.
-- **stdout + stderr** are merged into a single string. Stderr is appended under a `[STDERR]` marker.
-- If the checker binary isn't installed, the output is a human-readable error string rather than a crash.
+- `check=False` — a non-zero exit code never raises here. Most checkers exit non-zero whenever they find any type error, so the exit code by itself doesn't tell you much.
+- stdout and stderr get merged into one string, with stderr appended after a `[STDERR]` marker.
+- A missing checker binary doesn't crash the run — you get a readable error string back instead.
 
-The outer loop in `run_checkers()` collects results into a `results.json` file:
+The results collect into `results.json`:
 
 ```python
 for tool_name, command in CHECKERS.items():
@@ -66,18 +66,13 @@ for tool_name, output in file_result["outputs"].items():
     )
 ```
 
-## Output Parsing
+## Parsing the output
 
-Each checker has a different output format, so Pytifex uses checker-specific parsing in `_checker_reports_error()` (defined in both
-`comprehensive_eval.py` and `rederive_statuses.py`). The function returns `True` if the checker reported a type error, `False` otherwise.
+Every checker formats its output differently, so there's checker-specific parsing in `_checker_reports_error()`. That function lives in both `comprehensive_eval.py` and `rederive_statuses.py` — keep them in sync if you touch this.
 
 ### mypy / zuban
 
-mypy and zuban share the same output format:
-
-- **Clean run:** `Success: no issues found in 1 source file`
-- **Errors:** `Found N errors in M file (checked …)` where N > 0
-- **Fallback:** individual lines matching `:<whitespace>error`
+Same format for both:
 
 ```python
 if checker in ("mypy", "zuban"):
@@ -94,7 +89,7 @@ if checker in ("mypy", "zuban"):
 
 ### pyrefly
 
-Pyrefly emits diagnostic lines starting with `ERROR`. The parser filters out false positives from `reveal_type` lookups:
+Diagnostics start with `ERROR`. There's a special case to filter out `reveal_type()` noise, which pyrefly reports as an "unknown-name" error even though it's just a debugging call:
 
 ```python
 if checker == "pyrefly":
@@ -111,7 +106,7 @@ if checker == "pyrefly":
 
 ### ty
 
-ty prints `All checks passed!` on a clean run. Errors are lines matching `error[rule-name]:`. Warning/info diagnostics are ignored — only `error[…]` counts:
+Clean runs print `All checks passed!`. Errors are lines matching `error[rule-name]:` — warnings and info diagnostics don't count:
 
 ```python
 if checker == "ty":
@@ -123,9 +118,9 @@ if checker == "ty":
     return False
 ```
 
-### Generic fallback
+### Anything else
 
-For any unknown checker name, a simple heuristic is used:
+A generic fallback for an unrecognized checker name:
 
 ```python
 output_lower = output.lower()
@@ -136,31 +131,21 @@ return (
 )
 ```
 
-## Status Determination
+## Re-deriving statuses after a parser change
 
-Every file × checker pair gets a status of `"ok"` or `"error"`:
-
-```python
-status = "error" if checker_reports_error(output, checker_name) else "ok"
-```
-
-These statuses are stored in `results.json` and are the basis for detecting *disagreements*.
-
-If you suspect the statuses in an existing `results.json` are stale (e.g., after updating the parsing logic), you can re-derive them:
+If you fix the parsing logic, old `results.json` files still have statuses computed by the old version. There's a script to recompute them — `rederive_statuses.py`. Run it as a module from the repo root, not as a bare script (it has relative imports):
 
 ```bash
-# Preview changes without writing
-python rederive_statuses.py --dry-run
-
-# Apply corrected statuses
-python rederive_statuses.py --apply
+python -m pytifex.rederive_statuses             # dry run, reports mismatches only
+python -m pytifex.rederive_statuses --apply     # writes the corrected statuses
 ```
 
-## Adding a New Type Checker
+One caveat worth knowing: this script computes its `ROOT` as its own directory (`src/pytifex/`), but `generated_examples/` actually lives at the repo root. So as written, the glob it builds (`ROOT/generated_examples/*/results.json`) won't find your real output unless you run it with the working directory set to `src/pytifex/` and a `generated_examples` symlink or copy sitting there too. If you hit this, it's not you — it's a path bug in the script, not something you did wrong.
 
-1. **Install the checker** so it's available on `PATH`.
+## Adding a new checker
 
-2. **Add an entry to `CHECKERS`** in `config.py`:
+1. Make sure it's installed and on `PATH`.
+2. Add it to `CHECKERS` in `config.py`:
 
    ```python
    CHECKERS = {
@@ -168,11 +153,11 @@ python rederive_statuses.py --apply
        "pyrefly": ["pyrefly", "check"],
        "zuban": ["zuban", "check"],
        "ty": ["ty", "check"],
-       "pyright": ["pyright"],          # ← new
+       "pyright": ["pyright"],          # new
    }
    ```
 
-3. **Add parsing logic** in `comprehensive_eval._checker_reports_error()` (and the copy in `rederive_statuses.checker_reports_error()`). Add a new `if` branch before the generic fallback:
+3. Add parsing logic to `_checker_reports_error()` — in both `comprehensive_eval.py` and `rederive_statuses.py`:
 
    ```python
    if checker == "pyright":
@@ -183,12 +168,14 @@ python rederive_statuses.py --apply
        return False
    ```
 
-4. **Run the pipeline** to verify your checker works end-to-end:
+4. Run the pipeline end-to-end to make sure it actually works:
 
    ```bash
-   python run_checkers.py
+   uv run pytifex check
    ```
 
-5. **Validate parsing** with the existing test harness in `test_checker_parsing.py` — it compares parser output against ground-truth statuses from a reference `results.json`.
+5. Sanity-check your parser against a real `results.json`. There's a script for this too, `check_checker_parsing.py` — note it hardcodes a specific generation directory name inside it, so you'll need to point it at one that exists before it'll run:
 
-> **Note:** The parsing logic currently lives in two places (`comprehensive_eval.py` and `rederive_statuses.py`). Keep them in sync when adding a new checker.
+   ```bash
+   python -m pytifex.check_checker_parsing
+   ```

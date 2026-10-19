@@ -1,182 +1,91 @@
 # Architecture
 
-Pytifex is a hybrid system that orchestrates LLM-based code generation with
-local type-checker execution and objective two-phase evaluation. This page walks
-through every major subsystem so you can orient yourself in the codebase
-quickly.
+Pytifex splits its work across two places: an LLM API for generating and refining code, and your local machine for everything that has to be objectively true — fetching GitHub issues, running the actual type checker binaries, and executing the generated code to see what happens at runtime.
 
----
+The important thing to understand up front: **type checker output is always real**. Pytifex never asks an LLM to simulate what mypy or pyrefly would say. Every status in `results.json` comes from an actual subprocess call to the real binary.
 
-## System Overview
+| Where | What happens there |
+|-------|-----------|
+| LLM API | generating code, refining examples that didn't diverge |
+| Local machine | GitHub mining, running mypy/pyrefly/zuban/ty, executing code to find runtime proof |
 
-Pytifex splits work between two execution domains:
+## Pipeline flow (`pipeline.py`)
 
-| Domain | Responsibilities |
-|--------|-----------------|
-| **LLM API** | Code generation and refinement of non-divergent examples (Gemini, OpenAI, Cohere, or any OpenAI-compatible local server) |
-| **Local machine** | GitHub issue fetching, type-checker execution via `subprocess`, runtime crash detection, and Hypothesis property-based testing |
+### Step 0 — seed mining (`github_issues.py`)
 
-> **Important:** Type-checker outputs are *real*. Every status comes from
-> actually invoking `mypy`, `pyrefly`, `ty`, and `zuban` in a subprocess —
-> never from LLM simulation.
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│                       LLM API                            │
-│  ┌─────────────┐  ┌────────────┐                         │
-│  │ Code Gen    │  │ Refinement │                         │
-│  └─────────────┘  └────────────┘                         │
-└────────────────────────┬─────────────────────────────────┘
-                         │ API calls
-┌────────────────────────▼─────────────────────────────────┐
-│                   Local Machine                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ GitHub Issue │  │ Type Checker │  │  Two-Phase     │  │
-│  │   Mining     │  │  Execution   │  │  Evaluation    │  │
-│  └──────────────┘  └──────────────┘  └────────────────┘  │
-└──────────────────────────────────────────────────────────┘
-```
-
----
-
-## Pipeline Flow
-
-The core pipeline lives in `pipeline.py` and runs five sequential steps.
-
-### Step 0 — Seed Mining
-
-**Module:** `github_issues.py`
-
-Fetches closed bug-fix issues from upstream type-checker repositories via the
-GitHub REST API:
-
-- `python/mypy`
-- `facebook/pyrefly`
-- `astral-sh/ty`
-- `microsoft/pyright`
-- `zubanls/zuban`
-
-Only confirmed bugs are kept — issues whose `state_reason` is `"not_planned"`
-are filtered out. Python code blocks are extracted from issue bodies with a
-fenced-code-block regex. For Pyrefly, sandbox URLs are also handled by
-base64-decoding the encoded source.
+Pulls closed, confirmed bug-fix issues from `python/mypy`, `facebook/pyrefly`, `astral-sh/ty`, `microsoft/pyright`, and `zubanls/zuban`. "Confirmed" means `state == "closed"` and `state_reason != "not_planned"` — this is the actual filter, straight from `github_issues.py`:
 
 ```python
-# Simplified seed extraction logic
-for issue in fetch_closed_issues(repo, label="bug"):
-    if issue["state_reason"] == "not_planned":
-        continue
-    snippets = extract_python_blocks(issue["body"])
-    seeds.extend(snippets)
+def is_confirmed_bug(issue: dict) -> bool:
+    if issue.get("state") != "closed":
+        return False
+    if issue.get("state_reason") == "not_planned":
+        return False
+    return True
 ```
 
-### Step 1 — Code Generation
+Code gets pulled out of fenced ` ```python ` blocks, and for pyrefly specifically, out of its sandbox links too (those encode the source as base64 inside the URL).
 
-**Modules:** `prompts.py`, `agent.py`
+### Step 1 — code generation (`prompts.py`, `agent.py`)
 
-A batch of 3–5 seed examples is shown to the LLM with a request to generate
-*new* variations that are likely to trigger type-checker disagreements.
+3-5 seed examples get shown to the LLM with a request to generate new variations likely to cause a disagreement. If there are no seeds (`--no-github`, or GitHub fetch failed), it falls back to a prompt built purely from the pattern descriptions in `patterns.py`. This is the actual branch in `pipeline.py`:
 
 ```python
-# prompts.py
-prompt = build_seed_based_prompt(seeds[:5])
-
-# Falls back when no seeds are available
-if not seeds:
-    prompt = build_expert_prompt()
+if seed_examples:
+    prompt = build_seed_based_prompt(batch_seeds, batch_size)
+else:
+    prompt = build_expert_prompt(batch_size)
 ```
 
-The `agent.py` module provides three provider backends, each as a Pydantic model:
+`agent.py` has three provider backends, each a small Pydantic model with a `.communicate()` method:
 
-| Class | Provider | Activation |
+| Class | Provider | How it's picked |
 |-------|----------|------------|
-| `GetAccessToGemini` | Google Gemini | default; model name starts with `gemini-` |
-| `GetAccessToCohere` | Cohere | model name starts with `command` |
-| `GetAccessToOpenAI` | OpenAI-compatible | `--openai-base-url` is set |
+| `GetAccessToCohere` | Cohere | `--model` starts with `command` |
+| `GetAccessToOpenAI` | any OpenAI-compatible server | `--openai-base-url` is set |
+| `GetAccessToGemini` | Google Gemini | default fallback — leftover, planned for removal |
 
-`GetAccessToOpenAI` uses the standard `/v1/chat/completions` endpoint and works with the real OpenAI API, local llama-server instances, Ollama, vLLM, or any compatible server.
+Right now, `provider_for_model()` falls back to Gemini whenever neither of the two conditions above matches, which is why omitting `--model`/`--openai-base-url` silently uses Gemini. That default is on its way out; don't build anything that depends on it.
 
-### Step 2 — Type Checker Execution
+`GetAccessToOpenAI` just hits `{base_url}/chat/completions` — that's it. It works against the real OpenAI API or any local server (llama-server, Ollama, vLLM) that speaks the same protocol.
 
-**Module:** `pipeline.py` (delegates to `run_checkers.py`)
+### Step 2 — type checker execution (delegates to `run_checkers.py`)
 
-Every generated example is run through all four checkers. The pipeline compares
-the resulting statuses and retains only *disagreements* — cases where at least
-two checkers produce different verdicts.
+Every generated example runs through all four checkers. If the resulting statuses aren't all the same, it's a disagreement and gets kept:
 
 ```python
-statuses = run_all_checkers(example)  # e.g. {"mypy": "error", "pyrefly": "ok", ...}
-
-if len(set(statuses.values())) > 1:
-    divergent_examples.append(example)
+def has_disagreement(results: dict[str, CheckerResult]) -> bool:
+    statuses = [r.status for r in results.values()]
+    return len(set(statuses)) > 1
 ```
 
-### Step 3 — Refinement
+### Step 3 — refinement
 
-**Module:** `pipeline.py`
-
-Examples that did *not* diverge are sent back to the LLM together with the
-real checker feedback. The refinement prompt encourages the model to tweak the
-code so that it triggers a disagreement.
+Examples where all four checkers agreed get sent back to the LLM along with the real checker output, with a prompt asking it to tweak the code minimally so it actually diverges. This runs up to `--max-refinements` times per example, feeding the latest refined attempt back in as context for the next one:
 
 ```python
-for attempt in range(max_refinements):
-    refined = agent.generate(build_refinement_prompt(example, statuses))
-    new_statuses = run_all_checkers(refined)
-    if len(set(new_statuses.values())) > 1:
-        divergent_examples.append(refined)
-        break
+for i in range(max_attempts):
+    prompt = build_refinement_prompt_for_example(current)
+    response = agent.predict(prompt)
+    refined = parse_into_example(response)
+    refined.results = run_all_checkers(refined.code)
+    if has_disagreement(refined.results):
+        return refined
+    current = refined  # next attempt refines this one, not the original
 ```
 
-### Step 4 — Evaluation
+### Step 4 — evaluation (`comprehensive_eval.py`)
 
-**Module:** `comprehensive_eval.py`
+Every surviving disagreement gets run through a two-phase evaluation that decides which checker was correct. Covered in full on the [Evaluation](evaluation.qmd) page — short version: Phase 1 catches runtime crashes, Phase 2 uses Hypothesis + beartype to fuzz the actual functions with type-conformant inputs. (The code still names these `tier1`/`tier2` internally — see the note at the top of the Evaluation page.)
 
-All divergent examples are passed through a multi-phase evaluation system that
-determines which checker is correct. See the next section for details.
+## Other evaluation code that exists but isn't wired in
 
----
+A few modules in `src/pytifex/` implement additional evaluation strategies that aren't called from the main `evaluate_comprehensive()` path right now — they're either exploratory, used by other scripts, or superseded by the two-phase system:
 
-## Evaluation System (`comprehensive_eval.py`)
+- `source_analysis.py` — pure AST analysis (no execution) that flags ~20 named PEP violations (LSP overrides, Protocol instantiation, Final overrides, TypedDict inheritance, etc.). It's imported by `comprehensive_eval.run_tier3()`, but `run_tier3()` itself isn't called from `evaluate_comprehensive()`.
+- `static_tier4.py` — static flow analysis (import availability by Python version, variance violations, narrowing flow). Standalone, not called back into the main pipeline.
+- `oracle.py` — a cleaner architecture for matching `source_analysis.py` findings against parsed checker diagnostics.
+- `checker_claim_verification.py` — parses a checker's specific diagnostic message (e.g. mypy's `Argument 1 to "f" has incompatible type "int"; expected "str"`), synthesizes the exact "bad" value it's complaining about, and calls the function with it to see if it actually crashes.
+- `scoring.py` — precision/recall/F1 scoring across tiers, used for writing up results rather than for the live pipeline.
 
-Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.
-
-### Phase 1 — Runtime Crash Detection
-
-Executes the source code and catches runtime exceptions that signal a genuine type error (`TypeError`, `KeyError`, `AttributeError`). The tool walks the **full traceback** including exception chains (`__cause__` / `__context__`) and isolates `try`/`except` bodies to surface swallowed errors.
-
-A crash proves a **false negative**: any checker that said "OK" is definitively wrong.
-
-**Confidence:** 0.95
-
-### Phase 2 — Hypothesis Property-Based Testing
-
-**Module:** `hypothesis_phase2.py`
-
-Extracts function signatures via AST inspection, builds [Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints, and runs `@given` tests with generated inputs.
-
-```python
-# hypothesis_phase2.py (conceptual)
-sig = extract_signature(func_node)           # AST-based
-strategy = build_strategy_from_hints(sig)    # maps hints → st.*
-
-beartyped_fn = beartype(fn)                  # enforce input conformance at call time
-
-@given(strategy)
-def test(args):
-    result = beartyped_fn(*args)             # crash ⇒ false negative
-    check_type(result, return_hint)          # success ⇒ success witness
-```
-
-**False negatives (Phase 2a):** If a call crashes despite inputs being type-conformant (confirmed by [beartype](https://beartype.readthedocs.io/)), that is a proven type bug. Any checker that said "OK" missed it.
-
-**False positives (Phase 2b):** If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed `typeguard.check_type()` — those calls are recorded as **success witnesses**. A success witness proves the code is well-typed; any checker that said "error" has a proven false positive.
-
-**Confidence:** 0.85 (false negatives) / 0.90 (false positives, beartype-enforced)
-
----
-
-### Disclaimer
-
-Since Pytifex is a research tool under active development, the architecture may evolve in future versions.
-
+If you're trying to understand why a verdict came out a certain way, start with `comprehensive_eval.py` — that's the only evaluation code that's actually on the critical path.

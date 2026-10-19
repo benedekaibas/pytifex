@@ -1,28 +1,12 @@
 # Bug Mining & Mutation
 
-Pytifex's core innovation is **bug-seeded mutation**: instead of asking an LLM to invent type-checking edge cases from scratch, it mines real bugs from type checker repositories and uses them as seeds to generate targeted variations. This page explains the mining, mutation, and refinement pipeline from a developer perspective.
+The core idea behind Pytifex's generation step is: don't ask an LLM to invent type-checking edge cases from nothing — mine real bugs from the checkers' own GitHub issues and use them as seeds for new variations. A real bug report already proved a checker had a weakness somewhere; that's a much better starting point than a cold prompt.
 
----
+The pipeline never tests the original GitHub code directly, by the way. Seeds are inspiration only — what actually gets type-checked is always freshly generated code.
 
-## Why Mine Real Bugs?
+## Seed mining (`github_issues.py`)
 
-Type checker bugs cluster around specific patterns — `TypedDict` inheritance, `ParamSpec` decorators, `Protocol` variance. Real GitHub issues represent proven edge cases that already exposed a checker's weakness. Using them as seeds makes the LLM's code generation **dramatically more effective** at producing disagreements than prompting from scratch.
-
-```text
-Real Bug Reports        LLM generates         Type Checkers test
-(proven edge cases)  →  NEW variations    →   the NEW code
-                        (not copies)
-```
-
-The pipeline **never tests the original GitHub code directly**. The seeds are inspiration; the tested code is always freshly generated.
-
----
-
-## Seed Mining (`github_issues.py`)
-
-### Repositories
-
-Seeds are fetched from five type checker repositories:
+### Which repos
 
 ```python
 REPOS = {
@@ -34,11 +18,11 @@ REPOS = {
 }
 ```
 
-**NOTE**: Pytifex does not evaluate `pyright`, but because of its rich nature of GitHub issues it provides a valuable source for code examples.
+Note that pyright is in this list even though Pytifex doesn't actually evaluate pyright — its issue tracker just has a lot of useful code examples, so it's a source for seeds, not a checker under test.
 
-### Filtering to Confirmed Bugs
+### Filtering to confirmed bugs
 
-Not all closed issues are real bugs — many are "won't fix", duplicates, or feature requests. Pytifex filters using the GitHub `state_reason` field:
+Not every closed issue is a real bug — plenty get closed as "won't fix" or as duplicates. Pytifex checks the GitHub `state_reason` field:
 
 ```python
 def is_confirmed_bug(issue: dict) -> bool:
@@ -49,56 +33,50 @@ def is_confirmed_bug(issue: dict) -> bool:
     return True
 ```
 
-Only issues with `state_reason == "completed"` (or `null` for older issues) pass the filter.
+Only `state_reason == "completed"` (or `null`, for older issues that predate this field) passes.
 
-### Classifying False Positives / Negatives
-
-Issues are further classified by their labels:
+### False positive / false negative labels
 
 ```python
 FALSE_POSITIVE_LABELS = ["false-positive", "false positive", "spurious", ...]
 FALSE_NEGATIVE_LABELS = ["false-negative", "false negative", "missed-error", ...]
 ```
 
-This classification is passed to the LLM prompt so it knows whether the seed represents a case where a checker *over-reported* (false positive) or *under-reported* (false negative).
+This classification gets passed into the prompt so the LLM knows whether the seed was a checker over-reporting (false positive) or under-reporting (false negative).
 
-### Extracting Code from Issues
+### Pulling code out of the issue body
 
-Code is extracted from issue bodies using two methods:
-
-**1. Fenced code blocks** — Standard markdown ```` ```python ```` blocks:
+Two methods. First, plain fenced code blocks:
 
 ```python
 pattern = r"```(?:python|py)\n(.*?)```"
 matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
 ```
 
-**2. Pyrefly sandbox URLs** — Pyrefly issues often link to `pyrefly.org/sandbox/?project=<base64>`. Pytifex decodes the base64 payload and extracts the code:
+Second, pyrefly's sandbox links. These look like `pyrefly.org/sandbox/?project=<base64>` — the base64 payload decodes to JSON containing the source:
 
 ```python
 sandbox_pattern = r'https://pyrefly\.org/sandbox/\?project=([A-Za-z0-9%+/=]+)'
-# URL-decode → base64-decode → JSON parse → extract code
+# url-decode -> base64-decode -> json parse -> pull out the code
 ```
 
-Snippets shorter than 50 characters are discarded as not useful.
+Anything shorter than 50 characters gets thrown out as not useful.
 
-### Rate Limits
+### Rate limits
 
-Without a GitHub token, you get 60 API requests per hour. Setting `GITHUB_TOKEN` raises this to 5,000:
+60 requests/hour without a token, 5,000 with one:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token
 ```
 
-Or skip GitHub entirely with `--no-github`.
+Or skip it entirely with `--no-github`.
 
----
+## Generation (mutation)
 
-## Code Generation (Mutation)
+### The main prompt (`build_seed_based_prompt`)
 
-### Seed-Based Prompting
-
-The primary generation strategy (`build_seed_based_prompt` in `prompts.py`) shows 3–5 real bug examples to Gemini and asks for variations:
+Shows 3-5 real bug examples to the model and asks for variations:
 
 ```python
 prompt = f"""
@@ -121,43 +99,37 @@ NEW Python code examples that:
 """
 ```
 
-Every generated example **must** reference a `seed_issue` (e.g., `python/mypy#12345`). Examples without a valid seed reference are skipped during filtering.
+Every example the LLM produces has to reference a `seed_issue` (something like `python/mypy#12345`). Anything without one gets skipped during filtering.
 
-### Fallback Prompting
+### Fallback prompt
 
-When no GitHub seeds are available (e.g., `--no-github`), the pipeline falls back to `build_expert_prompt`, which uses the divergence pattern descriptions from `patterns.py` instead of real issues.
+If there are no seeds at all — `--no-github`, or GitHub was just unreachable — it falls back to `build_expert_prompt`, which drops the real issue examples and uses the pattern descriptions from `patterns.py` instead.
 
-### Seed Rotation
+### Rotating through seeds
 
-To avoid generating repetitive code, the pipeline rotates through seeds across attempts:
+So you don't get the same handful of seeds every batch:
 
 ```python
 start_idx = (attempt - 1) * 3 % len(seed_examples)
 batch_seeds = seed_examples[start_idx:start_idx + 5]
 ```
 
----
-
-## Disagreement Detection
-
-After each example is generated, all four checkers run on it:
+## Detecting a disagreement
 
 ```python
 results = run_all_checkers(example.code)
-# results = {"mypy": CheckerResult("ok", ...), "pyrefly": CheckerResult("error", ...), ...}
+# {"mypy": CheckerResult("ok", ...), "pyrefly": CheckerResult("error", ...), ...}
 
 def has_disagreement(results):
     statuses = [r.status for r in results.values()]
-    return len(set(statuses)) > 1  # at least one checker disagrees
+    return len(set(statuses)) > 1
 ```
 
-If all four checkers agree (`{"ok", "ok", "ok", "ok"}` or `{"error", "error", "error", "error"}`), the example is a candidate for refinement.
+If all four agree — either all `ok` or all `error` — the example goes to refinement instead of getting kept.
 
----
+## Refinement
 
-## Refinement Loop
-
-Non-divergent examples are sent back to the LLM with the real checker outputs as feedback:
+A non-divergent example gets sent back to the LLM with the actual checker output attached, asking for a minimal edit that makes a checker disagree:
 
 ```python
 def build_refinement_prompt(code, checker_results, seed_example):
@@ -171,26 +143,18 @@ def build_refinement_prompt(code, checker_results, seed_example):
     ## YOUR TASK:
     Modify this code MINIMALLY to create a REAL divergence where at least
     one checker disagrees with the others.
-
-    STRATEGIES:
-    1. If all passed: Add a subtle type error that only some checkers catch
-    2. If all failed: Fix the obvious error but keep a subtle edge case
-    3. Change the typing pattern slightly (add Protocol, use TypeGuard, ...)
     """
 ```
 
-The refined code is re-checked. This loop repeats up to `max_refinements` times (default: 2). Refined examples are marked as `DISAGREEMENT (refined)` in the output.
+Up to `--max-refinements` tries (default 2). If a refined version diverges, it shows up in the output marked `DISAGREEMENT (refined)`.
 
----
+## Flags that control this
 
-## Controlling the Pipeline
-
-| Option | Effect |
-|--------|--------|
-| `--num-examples N` | Stop after finding N disagreements |
-| `--batch-size N` | Generate N examples per LLM call |
-| `--max-attempts N` | Max generation rounds before giving up |
-| `--max-refinements N` | Max refinement passes per non-divergent example |
-| `--no-github` | Use pattern-based generation only (no seed mining) |
-| `--model gemini-2.5-pro` | Use a more capable model for better hit rate |
-
+| Flag | Effect |
+|------|--------|
+| `--num-examples N` | stop once N disagreements are found |
+| `--batch-size N` | examples generated per LLM call |
+| `--max-attempts N` | generation rounds before giving up |
+| `--max-refinements N` | refinement passes per non-divergent example |
+| `--no-github` | skip seed mining, generate from patterns only |
+| `--model command-a-03-2025` | a more capable model, usually a better hit rate |

@@ -119,16 +119,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#installation" id="toc-installation" class="nav-link active" data-scroll-target="#installation">Installation</a>
   <ul class="collapse">
-  <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
+  <li><a href="#what-you-need" id="toc-what-you-need" class="nav-link" data-scroll-target="#what-you-need">What you need</a></li>
   <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
-  <li><a href="#environment-variables" id="toc-environment-variables" class="nav-link" data-scroll-target="#environment-variables">Environment Variables</a></li>
-  <li><a href="#llm-provider-setup" id="toc-llm-provider-setup" class="nav-link" data-scroll-target="#llm-provider-setup">LLM Provider Setup</a>
+  <li><a href="#environment-variables" id="toc-environment-variables" class="nav-link" data-scroll-target="#environment-variables">Environment variables</a></li>
+  <li><a href="#setting-up-each-provider" id="toc-setting-up-each-provider" class="nav-link" data-scroll-target="#setting-up-each-provider">Setting up each provider</a>
   <ul class="collapse">
-  <li><a href="#google-gemini-default" id="toc-google-gemini-default" class="nav-link" data-scroll-target="#google-gemini-default">Google Gemini (default)</a></li>
-  <li><a href="#openai" id="toc-openai" class="nav-link" data-scroll-target="#openai">OpenAI</a></li>
-  <li><a href="#local-model-llama-server-ollama-vllm" id="toc-local-model-llama-server-ollama-vllm" class="nav-link" data-scroll-target="#local-model-llama-server-ollama-vllm">Local model (llama-server, Ollama, vLLM)</a></li>
+  <li><a href="#openai-compatible-real-openai-or-any-locallab-server" id="toc-openai-compatible-real-openai-or-any-locallab-server" class="nav-link" data-scroll-target="#openai-compatible-real-openai-or-any-locallab-server">OpenAI-compatible (real OpenAI, or any local/lab server)</a></li>
   <li><a href="#cohere" id="toc-cohere" class="nav-link" data-scroll-target="#cohere">Cohere</a></li>
   </ul></li>
+  <li><a href="#one-current-gap" id="toc-one-current-gap" class="nav-link" data-scroll-target="#one-current-gap">One current gap</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -141,29 +140,28 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="installation" class="level1">
 <h1>Installation</h1>
-<section id="prerequisites" class="level2">
-<h2 class="anchored" data-anchor-id="prerequisites">Prerequisites</h2>
+<section id="what-you-need" class="level2">
+<h2 class="anchored" data-anchor-id="what-you-need">What you need</h2>
 <ul>
-<li><strong>Python 3.12+</strong></li>
-<li><a href="https://docs.astral.sh/uv/"><strong>uv</strong></a> (recommended) or pip</li>
+<li>Python 3.12+</li>
+<li><a href="https://docs.astral.sh/uv/">uv</a></li>
 </ul>
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install pytifex</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Set an API key for your chosen LLM provider (see below)</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_gemini_api_key</span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/benedekaibas/pytifex</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> pytifex</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_cohere_api_key   <span class="co"># or set up another provider, see below</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional — higher GitHub API rate limits</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># optional, only raises GitHub rate limits</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_github_token</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Run Pytifex</span></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The type checkers (mypy, pyrefly, zuban, ty) are <strong>automatically installed</strong> by <code>uv</code> when you run the tool.</p>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run <span class="at">--extra</span> dev pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>--extra dev</code> is what actually installs mypy, pyrefly, zuban, and ty — they’re declared as an optional dependency group in <code>pyproject.toml</code>, not a base dependency. Leave it off and <code>uv run pytifex</code> only installs pytifex’s own two dependencies; the checkers won’t exist on <code>PATH</code> and every checker call fails.</p>
 </section>
 <section id="environment-variables" class="level2">
-<h2 class="anchored" data-anchor-id="environment-variables">Environment Variables</h2>
+<h2 class="anchored" data-anchor-id="environment-variables">Environment variables</h2>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 30%">
@@ -173,64 +171,53 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <thead>
 <tr class="header">
 <th>Variable</th>
-<th>Required</th>
-<th>Description</th>
+<th>When it’s needed</th>
+<th>What it’s for</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>GEMINI_API_KEY</code></td>
-<td>For Gemini models</td>
-<td>Google Gemini API key</td>
+<td><code>OPENAI_API_KEY</code></td>
+<td>Using <code>--openai-base-url</code> against an authenticated server</td>
+<td>API key for OpenAI, or whatever token your local/lab server expects</td>
 </tr>
 <tr class="even">
-<td><code>OPENAI_API_KEY</code></td>
-<td>For OpenAI API</td>
-<td>OpenAI API key (not needed for local servers)</td>
+<td><code>COHERE_API_KEY</code></td>
+<td>Using a <code>command-*</code> model</td>
+<td>Cohere API key (<code>CO_API_KEY</code> also works)</td>
 </tr>
 <tr class="odd">
-<td><code>COHERE_API_KEY</code></td>
-<td>For Cohere models</td>
-<td>Cohere API key (also accepted as <code>CO_API_KEY</code>)</td>
-</tr>
-<tr class="even">
 <td><code>GITHUB_TOKEN</code></td>
-<td>No</td>
-<td>GitHub token for higher API rate limits (60 → 5,000 req/hour)</td>
+<td>Optional</td>
+<td>Raises the GitHub API rate limit from 60 to 5,000 requests/hour</td>
 </tr>
 </tbody>
 </table>
-<p>At least one LLM provider key is required unless you are using a local model server, in which case no key is needed.</p>
+<p>You need exactly one provider key, unless you’re pointing at a local server with no auth — then you need none.</p>
 </section>
-<section id="llm-provider-setup" class="level2">
-<h2 class="anchored" data-anchor-id="llm-provider-setup">LLM Provider Setup</h2>
-<section id="google-gemini-default" class="level3">
-<h3 class="anchored" data-anchor-id="google-gemini-default">Google Gemini (default)</h3>
-<p>Get a free API key at <a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a>.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GEMINI_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="openai" class="level3">
-<h3 class="anchored" data-anchor-id="openai">OpenAI</h3>
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="local-model-llama-server-ollama-vllm" class="level3">
-<h3 class="anchored" data-anchor-id="local-model-llama-server-ollama-vllm">Local model (llama-server, Ollama, vLLM)</h3>
-<p>No API key needed. Start your server, then point Pytifex at it:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Example: llama.cpp llama-server</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># llama-server -m qwen3-6b.gguf --port 8080</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Any server exposing a <code>/v1/chat/completions</code> endpoint is compatible.</p>
+<section id="setting-up-each-provider" class="level2">
+<h2 class="anchored" data-anchor-id="setting-up-each-provider">Setting up each provider</h2>
+<section id="openai-compatible-real-openai-or-any-locallab-server" class="level3">
+<h3 class="anchored" data-anchor-id="openai-compatible-real-openai-or-any-locallab-server">OpenAI-compatible (real OpenAI, or any local/lab server)</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># real OpenAI</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run <span class="at">--extra</span> dev pytifex <span class="at">--model</span> gpt-4o <span class="at">--openai-base-url</span> https://api.openai.com/v1</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># a local server, no key needed unless it requires one</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run <span class="at">--extra</span> dev pytifex <span class="at">--model</span> qwen3-6b <span class="at">--openai-base-url</span> http://localhost:8080/v1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>--openai-base-url</code> forces this provider regardless of the model name — the model name just has to match what the server itself calls it.</p>
 </section>
 <section id="cohere" class="level3">
 <h3 class="anchored" data-anchor-id="cohere">Cohere</h3>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-
-
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">COHERE_API_KEY</span><span class="op">=</span>your_key</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run <span class="at">--extra</span> dev pytifex <span class="at">--model</span> command-a-03-2025</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+</section>
+<section id="one-current-gap" class="level2">
+<h2 class="anchored" data-anchor-id="one-current-gap">One current gap</h2>
+<p>If you omit both <code>--model</code> and <code>--openai-base-url</code>, the CLI falls back to Gemini — that’s a hard-coded default in <code>main.py</code>/<code>agent.py</code> left over from an earlier version. It’s planned to come out. Until it does, always pass a provider flag explicitly rather than leaving <code>--model</code> at its default.</p>
+
+
 </section>
 </section>
 

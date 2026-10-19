@@ -119,24 +119,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#bug-mining-mutation" id="toc-bug-mining-mutation" class="nav-link active" data-scroll-target="#bug-mining-mutation">Bug Mining &amp; Mutation</a>
   <ul class="collapse">
-  <li><a href="#why-mine-real-bugs" id="toc-why-mine-real-bugs" class="nav-link" data-scroll-target="#why-mine-real-bugs">Why Mine Real Bugs?</a></li>
-  <li><a href="#seed-mining-github_issues.py" id="toc-seed-mining-github_issues.py" class="nav-link" data-scroll-target="#seed-mining-github_issues.py">Seed Mining (<code>github_issues.py</code>)</a>
+  <li><a href="#seed-mining-github_issues.py" id="toc-seed-mining-github_issues.py" class="nav-link" data-scroll-target="#seed-mining-github_issues.py">Seed mining (<code>github_issues.py</code>)</a>
   <ul class="collapse">
-  <li><a href="#repositories" id="toc-repositories" class="nav-link" data-scroll-target="#repositories">Repositories</a></li>
-  <li><a href="#filtering-to-confirmed-bugs" id="toc-filtering-to-confirmed-bugs" class="nav-link" data-scroll-target="#filtering-to-confirmed-bugs">Filtering to Confirmed Bugs</a></li>
-  <li><a href="#classifying-false-positives-negatives" id="toc-classifying-false-positives-negatives" class="nav-link" data-scroll-target="#classifying-false-positives-negatives">Classifying False Positives / Negatives</a></li>
-  <li><a href="#extracting-code-from-issues" id="toc-extracting-code-from-issues" class="nav-link" data-scroll-target="#extracting-code-from-issues">Extracting Code from Issues</a></li>
-  <li><a href="#rate-limits" id="toc-rate-limits" class="nav-link" data-scroll-target="#rate-limits">Rate Limits</a></li>
+  <li><a href="#which-repos" id="toc-which-repos" class="nav-link" data-scroll-target="#which-repos">Which repos</a></li>
+  <li><a href="#filtering-to-confirmed-bugs" id="toc-filtering-to-confirmed-bugs" class="nav-link" data-scroll-target="#filtering-to-confirmed-bugs">Filtering to confirmed bugs</a></li>
+  <li><a href="#false-positive-false-negative-labels" id="toc-false-positive-false-negative-labels" class="nav-link" data-scroll-target="#false-positive-false-negative-labels">False positive / false negative labels</a></li>
+  <li><a href="#pulling-code-out-of-the-issue-body" id="toc-pulling-code-out-of-the-issue-body" class="nav-link" data-scroll-target="#pulling-code-out-of-the-issue-body">Pulling code out of the issue body</a></li>
+  <li><a href="#rate-limits" id="toc-rate-limits" class="nav-link" data-scroll-target="#rate-limits">Rate limits</a></li>
   </ul></li>
-  <li><a href="#code-generation-mutation" id="toc-code-generation-mutation" class="nav-link" data-scroll-target="#code-generation-mutation">Code Generation (Mutation)</a>
+  <li><a href="#generation-mutation" id="toc-generation-mutation" class="nav-link" data-scroll-target="#generation-mutation">Generation (mutation)</a>
   <ul class="collapse">
-  <li><a href="#seed-based-prompting" id="toc-seed-based-prompting" class="nav-link" data-scroll-target="#seed-based-prompting">Seed-Based Prompting</a></li>
-  <li><a href="#fallback-prompting" id="toc-fallback-prompting" class="nav-link" data-scroll-target="#fallback-prompting">Fallback Prompting</a></li>
-  <li><a href="#seed-rotation" id="toc-seed-rotation" class="nav-link" data-scroll-target="#seed-rotation">Seed Rotation</a></li>
+  <li><a href="#the-main-prompt-build_seed_based_prompt" id="toc-the-main-prompt-build_seed_based_prompt" class="nav-link" data-scroll-target="#the-main-prompt-build_seed_based_prompt">The main prompt (<code>build_seed_based_prompt</code>)</a></li>
+  <li><a href="#fallback-prompt" id="toc-fallback-prompt" class="nav-link" data-scroll-target="#fallback-prompt">Fallback prompt</a></li>
+  <li><a href="#rotating-through-seeds" id="toc-rotating-through-seeds" class="nav-link" data-scroll-target="#rotating-through-seeds">Rotating through seeds</a></li>
   </ul></li>
-  <li><a href="#disagreement-detection" id="toc-disagreement-detection" class="nav-link" data-scroll-target="#disagreement-detection">Disagreement Detection</a></li>
-  <li><a href="#refinement-loop" id="toc-refinement-loop" class="nav-link" data-scroll-target="#refinement-loop">Refinement Loop</a></li>
-  <li><a href="#controlling-the-pipeline" id="toc-controlling-the-pipeline" class="nav-link" data-scroll-target="#controlling-the-pipeline">Controlling the Pipeline</a></li>
+  <li><a href="#detecting-a-disagreement" id="toc-detecting-a-disagreement" class="nav-link" data-scroll-target="#detecting-a-disagreement">Detecting a disagreement</a></li>
+  <li><a href="#refinement" id="toc-refinement" class="nav-link" data-scroll-target="#refinement">Refinement</a></li>
+  <li><a href="#flags-that-control-this" id="toc-flags-that-control-this" class="nav-link" data-scroll-target="#flags-that-control-this">Flags that control this</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -149,177 +148,155 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="bug-mining-mutation" class="level1">
 <h1>Bug Mining &amp; Mutation</h1>
-<p>Pytifex’s core innovation is <strong>bug-seeded mutation</strong>: instead of asking an LLM to invent type-checking edge cases from scratch, it mines real bugs from type checker repositories and uses them as seeds to generate targeted variations. This page explains the mining, mutation, and refinement pipeline from a developer perspective.</p>
-<hr>
-<section id="why-mine-real-bugs" class="level2">
-<h2 class="anchored" data-anchor-id="why-mine-real-bugs">Why Mine Real Bugs?</h2>
-<p>Type checker bugs cluster around specific patterns — <code>TypedDict</code> inheritance, <code>ParamSpec</code> decorators, <code>Protocol</code> variance. Real GitHub issues represent proven edge cases that already exposed a checker’s weakness. Using them as seeds makes the LLM’s code generation <strong>dramatically more effective</strong> at producing disagreements than prompting from scratch.</p>
-<pre class="text"><code>Real Bug Reports        LLM generates         Type Checkers test
-(proven edge cases)  →  NEW variations    →   the NEW code
-                        (not copies)</code></pre>
-<p>The pipeline <strong>never tests the original GitHub code directly</strong>. The seeds are inspiration; the tested code is always freshly generated.</p>
-<hr>
-</section>
+<p>The core idea behind Pytifex’s generation step is: don’t ask an LLM to invent type-checking edge cases from nothing — mine real bugs from the checkers’ own GitHub issues and use them as seeds for new variations. A real bug report already proved a checker had a weakness somewhere; that’s a much better starting point than a cold prompt.</p>
+<p>The pipeline never tests the original GitHub code directly, by the way. Seeds are inspiration only — what actually gets type-checked is always freshly generated code.</p>
 <section id="seed-mining-github_issues.py" class="level2">
-<h2 class="anchored" data-anchor-id="seed-mining-github_issues.py">Seed Mining (<code>github_issues.py</code>)</h2>
-<section id="repositories" class="level3">
-<h3 class="anchored" data-anchor-id="repositories">Repositories</h3>
-<p>Seeds are fetched from five type checker repositories:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>REPOS <span class="op">=</span> {</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: <span class="st">"python/mypy"</span>,</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: <span class="st">"facebook/pyrefly"</span>,</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ty"</span>: <span class="st">"astral-sh/ty"</span>,</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyright"</span>: <span class="st">"microsoft/pyright"</span>,</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: <span class="st">"zubanls/zuban"</span>,</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>NOTE</strong>: Pytifex does not evaluate <code>pyright</code>, but because of its rich nature of GitHub issues it provides a valuable source for code examples.</p>
+<h2 class="anchored" data-anchor-id="seed-mining-github_issues.py">Seed mining (<code>github_issues.py</code>)</h2>
+<section id="which-repos" class="level3">
+<h3 class="anchored" data-anchor-id="which-repos">Which repos</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>REPOS <span class="op">=</span> {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"mypy"</span>: <span class="st">"python/mypy"</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyrefly"</span>: <span class="st">"facebook/pyrefly"</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ty"</span>: <span class="st">"astral-sh/ty"</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pyright"</span>: <span class="st">"microsoft/pyright"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"zuban"</span>: <span class="st">"zubanls/zuban"</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that pyright is in this list even though Pytifex doesn’t actually evaluate pyright — its issue tracker just has a lot of useful code examples, so it’s a source for seeds, not a checker under test.</p>
 </section>
 <section id="filtering-to-confirmed-bugs" class="level3">
-<h3 class="anchored" data-anchor-id="filtering-to-confirmed-bugs">Filtering to Confirmed Bugs</h3>
-<p>Not all closed issues are real bugs — many are “won’t fix”, duplicates, or feature requests. Pytifex filters using the GitHub <code>state_reason</code> field:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_confirmed_bug(issue: <span class="bu">dict</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state"</span>) <span class="op">!=</span> <span class="st">"closed"</span>:</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state_reason"</span>) <span class="op">==</span> <span class="st">"not_planned"</span>:</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Only issues with <code>state_reason == "completed"</code> (or <code>null</code> for older issues) pass the filter.</p>
+<h3 class="anchored" data-anchor-id="filtering-to-confirmed-bugs">Filtering to confirmed bugs</h3>
+<p>Not every closed issue is a real bug — plenty get closed as “won’t fix” or as duplicates. Pytifex checks the GitHub <code>state_reason</code> field:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_confirmed_bug(issue: <span class="bu">dict</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state"</span>) <span class="op">!=</span> <span class="st">"closed"</span>:</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> issue.get(<span class="st">"state_reason"</span>) <span class="op">==</span> <span class="st">"not_planned"</span>:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Only <code>state_reason == "completed"</code> (or <code>null</code>, for older issues that predate this field) passes.</p>
 </section>
-<section id="classifying-false-positives-negatives" class="level3">
-<h3 class="anchored" data-anchor-id="classifying-false-positives-negatives">Classifying False Positives / Negatives</h3>
-<p>Issues are further classified by their labels:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>FALSE_POSITIVE_LABELS <span class="op">=</span> [<span class="st">"false-positive"</span>, <span class="st">"false positive"</span>, <span class="st">"spurious"</span>, ...]</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>FALSE_NEGATIVE_LABELS <span class="op">=</span> [<span class="st">"false-negative"</span>, <span class="st">"false negative"</span>, <span class="st">"missed-error"</span>, ...]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>This classification is passed to the LLM prompt so it knows whether the seed represents a case where a checker <em>over-reported</em> (false positive) or <em>under-reported</em> (false negative).</p>
+<section id="false-positive-false-negative-labels" class="level3">
+<h3 class="anchored" data-anchor-id="false-positive-false-negative-labels">False positive / false negative labels</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>FALSE_POSITIVE_LABELS <span class="op">=</span> [<span class="st">"false-positive"</span>, <span class="st">"false positive"</span>, <span class="st">"spurious"</span>, ...]</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>FALSE_NEGATIVE_LABELS <span class="op">=</span> [<span class="st">"false-negative"</span>, <span class="st">"false negative"</span>, <span class="st">"missed-error"</span>, ...]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This classification gets passed into the prompt so the LLM knows whether the seed was a checker over-reporting (false positive) or under-reporting (false negative).</p>
 </section>
-<section id="extracting-code-from-issues" class="level3">
-<h3 class="anchored" data-anchor-id="extracting-code-from-issues">Extracting Code from Issues</h3>
-<p>Code is extracted from issue bodies using two methods:</p>
-<p><strong>1. Fenced code blocks</strong> — Standard markdown <code>```python</code> blocks:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>pattern <span class="op">=</span> <span class="vs">r"```</span>(?:<span class="vs">python</span><span class="cf">|</span><span class="vs">py</span>)<span class="ch">\n</span><span class="kw">(</span><span class="dv">.</span><span class="op">*?</span><span class="kw">)</span><span class="vs">```"</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>matches <span class="op">=</span> re.findall(pattern, text, re.DOTALL <span class="op">|</span> re.IGNORECASE)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><strong>2. Pyrefly sandbox URLs</strong> — Pyrefly issues often link to <code>pyrefly.org/sandbox/?project=&lt;base64&gt;</code>. Pytifex decodes the base64 payload and extracts the code:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>sandbox_pattern <span class="op">=</span> <span class="vs">r'https://pyrefly</span><span class="ch">\.</span><span class="vs">org/sandbox/</span><span class="ch">\?</span><span class="vs">project=</span><span class="kw">(</span><span class="pp">[A-Za-z0-9%+/=]</span><span class="op">+</span><span class="kw">)</span><span class="vs">'</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># URL-decode → base64-decode → JSON parse → extract code</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Snippets shorter than 50 characters are discarded as not useful.</p>
+<section id="pulling-code-out-of-the-issue-body" class="level3">
+<h3 class="anchored" data-anchor-id="pulling-code-out-of-the-issue-body">Pulling code out of the issue body</h3>
+<p>Two methods. First, plain fenced code blocks:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>pattern <span class="op">=</span> <span class="vs">r"```</span>(?:<span class="vs">python</span><span class="cf">|</span><span class="vs">py</span>)<span class="ch">\n</span><span class="kw">(</span><span class="dv">.</span><span class="op">*?</span><span class="kw">)</span><span class="vs">```"</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>matches <span class="op">=</span> re.findall(pattern, text, re.DOTALL <span class="op">|</span> re.IGNORECASE)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Second, pyrefly’s sandbox links. These look like <code>pyrefly.org/sandbox/?project=&lt;base64&gt;</code> — the base64 payload decodes to JSON containing the source:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>sandbox_pattern <span class="op">=</span> <span class="vs">r'https://pyrefly</span><span class="ch">\.</span><span class="vs">org/sandbox/</span><span class="ch">\?</span><span class="vs">project=</span><span class="kw">(</span><span class="pp">[A-Za-z0-9%+/=]</span><span class="op">+</span><span class="kw">)</span><span class="vs">'</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># url-decode -&gt; base64-decode -&gt; json parse -&gt; pull out the code</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Anything shorter than 50 characters gets thrown out as not useful.</p>
 </section>
 <section id="rate-limits" class="level3">
-<h3 class="anchored" data-anchor-id="rate-limits">Rate Limits</h3>
-<p>Without a GitHub token, you get 60 API requests per hour. Setting <code>GITHUB_TOKEN</code> raises this to 5,000:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_token</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or skip GitHub entirely with <code>--no-github</code>.</p>
-<hr>
+<h3 class="anchored" data-anchor-id="rate-limits">Rate limits</h3>
+<p>60 requests/hour without a token, 5,000 with one:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GITHUB_TOKEN</span><span class="op">=</span>ghp_your_token</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or skip it entirely with <code>--no-github</code>.</p>
 </section>
 </section>
-<section id="code-generation-mutation" class="level2">
-<h2 class="anchored" data-anchor-id="code-generation-mutation">Code Generation (Mutation)</h2>
-<section id="seed-based-prompting" class="level3">
-<h3 class="anchored" data-anchor-id="seed-based-prompting">Seed-Based Prompting</h3>
-<p>The primary generation strategy (<code>build_seed_based_prompt</code> in <code>prompts.py</code>) shows 3–5 real bug examples to Gemini and asks for variations:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="ss">f"""</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ss">## REAL BUG EXAMPLES FROM TYPE CHECKER ISSUES:</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>seeds_text<span class="sc">}</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="ss">## YOUR TASK:</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="ss">Using these real bugs as inspiration, generate </span><span class="sc">{</span>num_variations<span class="sc">}</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="ss">NEW Python code examples that:</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="ss">1. Are VARIATIONS or EXTENSIONS of the patterns shown above</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="ss">2. Target subtle type system edge cases likely to cause checker disagreements</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="ss">3. Are self-contained and runnable (include all imports)</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="ss">## STRATEGY FOR GENERATING DIVERGENCES:</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- If a seed shows a false positive in mypy, create a similar case</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="ss">  that other checkers also get wrong</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- If a seed shows a false negative, create variations that test</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="ss">  the boundaries of what gets caught</span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="ss">- Combine patterns: e.g., TypedDict + Protocol, ParamSpec + classmethod</span></span>
-<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="ss">"""</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Every generated example <strong>must</strong> reference a <code>seed_issue</code> (e.g., <code>python/mypy#12345</code>). Examples without a valid seed reference are skipped during filtering.</p>
+<section id="generation-mutation" class="level2">
+<h2 class="anchored" data-anchor-id="generation-mutation">Generation (mutation)</h2>
+<section id="the-main-prompt-build_seed_based_prompt" class="level3">
+<h3 class="anchored" data-anchor-id="the-main-prompt-build_seed_based_prompt">The main prompt (<code>build_seed_based_prompt</code>)</h3>
+<p>Shows 3-5 real bug examples to the model and asks for variations:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="ss">f"""</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ss">## REAL BUG EXAMPLES FROM TYPE CHECKER ISSUES:</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="sc">{</span>seeds_text<span class="sc">}</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="ss">## YOUR TASK:</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="ss">Using these real bugs as inspiration, generate </span><span class="sc">{</span>num_variations<span class="sc">}</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="ss">NEW Python code examples that:</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="ss">1. Are VARIATIONS or EXTENSIONS of the patterns shown above</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="ss">2. Target subtle type system edge cases likely to cause checker disagreements</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="ss">3. Are self-contained and runnable (include all imports)</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="ss">## STRATEGY FOR GENERATING DIVERGENCES:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="ss">- If a seed shows a false positive in mypy, create a similar case</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="ss">  that other checkers also get wrong</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="ss">- If a seed shows a false negative, create variations that test</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="ss">  the boundaries of what gets caught</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="ss">- Combine patterns: e.g., TypedDict + Protocol, ParamSpec + classmethod</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="ss">"""</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Every example the LLM produces has to reference a <code>seed_issue</code> (something like <code>python/mypy#12345</code>). Anything without one gets skipped during filtering.</p>
 </section>
-<section id="fallback-prompting" class="level3">
-<h3 class="anchored" data-anchor-id="fallback-prompting">Fallback Prompting</h3>
-<p>When no GitHub seeds are available (e.g., <code>--no-github</code>), the pipeline falls back to <code>build_expert_prompt</code>, which uses the divergence pattern descriptions from <code>patterns.py</code> instead of real issues.</p>
+<section id="fallback-prompt" class="level3">
+<h3 class="anchored" data-anchor-id="fallback-prompt">Fallback prompt</h3>
+<p>If there are no seeds at all — <code>--no-github</code>, or GitHub was just unreachable — it falls back to <code>build_expert_prompt</code>, which drops the real issue examples and uses the pattern descriptions from <code>patterns.py</code> instead.</p>
 </section>
-<section id="seed-rotation" class="level3">
-<h3 class="anchored" data-anchor-id="seed-rotation">Seed Rotation</h3>
-<p>To avoid generating repetitive code, the pipeline rotates through seeds across attempts:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>start_idx <span class="op">=</span> (attempt <span class="op">-</span> <span class="dv">1</span>) <span class="op">*</span> <span class="dv">3</span> <span class="op">%</span> <span class="bu">len</span>(seed_examples)</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>batch_seeds <span class="op">=</span> seed_examples[start_idx:start_idx <span class="op">+</span> <span class="dv">5</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<hr>
+<section id="rotating-through-seeds" class="level3">
+<h3 class="anchored" data-anchor-id="rotating-through-seeds">Rotating through seeds</h3>
+<p>So you don’t get the same handful of seeds every batch:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>start_idx <span class="op">=</span> (attempt <span class="op">-</span> <span class="dv">1</span>) <span class="op">*</span> <span class="dv">3</span> <span class="op">%</span> <span class="bu">len</span>(seed_examples)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>batch_seeds <span class="op">=</span> seed_examples[start_idx:start_idx <span class="op">+</span> <span class="dv">5</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="disagreement-detection" class="level2">
-<h2 class="anchored" data-anchor-id="disagreement-detection">Disagreement Detection</h2>
-<p>After each example is generated, all four checkers run on it:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> run_all_checkers(example.code)</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># results = {"mypy": CheckerResult("ok", ...), "pyrefly": CheckerResult("error", ...), ...}</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> has_disagreement(results):</span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    statuses <span class="op">=</span> [r.status <span class="cf">for</span> r <span class="kw">in</span> results.values()]</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">len</span>(<span class="bu">set</span>(statuses)) <span class="op">&gt;</span> <span class="dv">1</span>  <span class="co"># at least one checker disagrees</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If all four checkers agree (<code>{"ok", "ok", "ok", "ok"}</code> or <code>{"error", "error", "error", "error"}</code>), the example is a candidate for refinement.</p>
-<hr>
+<section id="detecting-a-disagreement" class="level2">
+<h2 class="anchored" data-anchor-id="detecting-a-disagreement">Detecting a disagreement</h2>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> run_all_checkers(example.code)</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># {"mypy": CheckerResult("ok", ...), "pyrefly": CheckerResult("error", ...), ...}</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> has_disagreement(results):</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    statuses <span class="op">=</span> [r.status <span class="cf">for</span> r <span class="kw">in</span> results.values()]</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">len</span>(<span class="bu">set</span>(statuses)) <span class="op">&gt;</span> <span class="dv">1</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If all four agree — either all <code>ok</code> or all <code>error</code> — the example goes to refinement instead of getting kept.</p>
 </section>
-<section id="refinement-loop" class="level2">
-<h2 class="anchored" data-anchor-id="refinement-loop">Refinement Loop</h2>
-<p>Non-divergent examples are sent back to the LLM with the real checker outputs as feedback:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_refinement_prompt(code, checker_results, seed_example):</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="ss">f"""</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ss">    The following Python code was tested with all 4 type checkers</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ss">    but they ALL AGREED — meaning this is NOT a useful divergence example.</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="ss">    ## ACTUAL CHECKER RESULTS (all agree):</span></span>
-<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span><span class="sc">{</span>results_text<span class="sc">}</span></span>
-<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="ss">    ## YOUR TASK:</span></span>
-<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="ss">    Modify this code MINIMALLY to create a REAL divergence where at least</span></span>
-<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="ss">    one checker disagrees with the others.</span></span>
-<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="ss">    STRATEGIES:</span></span>
-<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="ss">    1. If all passed: Add a subtle type error that only some checkers catch</span></span>
-<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="ss">    2. If all failed: Fix the obvious error but keep a subtle edge case</span></span>
-<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="ss">    3. Change the typing pattern slightly (add Protocol, use TypeGuard, ...)</span></span>
-<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="ss">    """</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The refined code is re-checked. This loop repeats up to <code>max_refinements</code> times (default: 2). Refined examples are marked as <code>DISAGREEMENT (refined)</code> in the output.</p>
-<hr>
+<section id="refinement" class="level2">
+<h2 class="anchored" data-anchor-id="refinement">Refinement</h2>
+<p>A non-divergent example gets sent back to the LLM with the actual checker output attached, asking for a minimal edit that makes a checker disagree:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_refinement_prompt(code, checker_results, seed_example):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="ss">f"""</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="ss">    The following Python code was tested with all 4 type checkers</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="ss">    but they ALL AGREED — meaning this is NOT a useful divergence example.</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="ss">    ## ACTUAL CHECKER RESULTS (all agree):</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="ss">    </span><span class="sc">{</span>results_text<span class="sc">}</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="ss">    ## YOUR TASK:</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="ss">    Modify this code MINIMALLY to create a REAL divergence where at least</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="ss">    one checker disagrees with the others.</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="ss">    """</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Up to <code>--max-refinements</code> tries (default 2). If a refined version diverges, it shows up in the output marked <code>DISAGREEMENT (refined)</code>.</p>
 </section>
-<section id="controlling-the-pipeline" class="level2">
-<h2 class="anchored" data-anchor-id="controlling-the-pipeline">Controlling the Pipeline</h2>
+<section id="flags-that-control-this" class="level2">
+<h2 class="anchored" data-anchor-id="flags-that-control-this">Flags that control this</h2>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
+<col style="width: 42%">
+<col style="width: 57%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>Option</th>
+<th>Flag</th>
 <th>Effect</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>--num-examples N</code></td>
-<td>Stop after finding N disagreements</td>
+<td>stop once N disagreements are found</td>
 </tr>
 <tr class="even">
 <td><code>--batch-size N</code></td>
-<td>Generate N examples per LLM call</td>
+<td>examples generated per LLM call</td>
 </tr>
 <tr class="odd">
 <td><code>--max-attempts N</code></td>
-<td>Max generation rounds before giving up</td>
+<td>generation rounds before giving up</td>
 </tr>
 <tr class="even">
 <td><code>--max-refinements N</code></td>
-<td>Max refinement passes per non-divergent example</td>
+<td>refinement passes per non-divergent example</td>
 </tr>
 <tr class="odd">
 <td><code>--no-github</code></td>
-<td>Use pattern-based generation only (no seed mining)</td>
+<td>skip seed mining, generate from patterns only</td>
 </tr>
 <tr class="even">
-<td><code>--model gemini-2.5-pro</code></td>
-<td>Use a more capable model for better hit rate</td>
+<td><code>--model command-a-03-2025</code></td>
+<td>a more capable model, usually a better hit rate</td>
 </tr>
 </tbody>
 </table>
