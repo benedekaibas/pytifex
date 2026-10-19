@@ -48,33 +48,11 @@ export COHERE_API_KEY=your_key
 uv run --extra dev pytifex --model command-a-03-2025
 ```
 
-## What Happens When You Run It
-
-1. **Seed mining** — Pytifex fetches closed bug reports from mypy, pyrefly, and ty GitHub repositories
-2. **Code generation** — Seeds are sent to the LLM, which generates new code variations targeting similar edge cases
-3. **Type checking** — Each generated example is run through mypy, pyrefly, zuban, and ty
-4. **Filtering** — Only examples where checkers *disagree* are kept
-5. **Evaluation** — A two-phase objective system determines which checker is correct using runtime evidence only
-
-Output is saved to `generated_examples/<timestamp>/`.
-
-## Optional: GitHub Token
-
-Without a token, GitHub API requests are limited to 60/hour. For heavier usage:
-
-```bash
-export GITHUB_TOKEN=ghp_your_token    # raises limit to 5,000/hour
-```
-
-Or skip GitHub entirely:
-
-```bash
-uv run pytifex --no-github
-```
+If you omit both `--model` and `--openai-base-url`, the CLI falls back to Gemini internally — a leftover default, not a supported path. Always pass one of the two above.
 
 ## Next steps
 
-- **[Installation](installation.qmd)** — Detailed setup including manual installation
-- **[Usage](usage.qmd)** — Full CLI reference, commands, and options
-- **[Evaluation](evaluation.qmd)** — Understand how the two-phase objective evaluation works
-- **[Architecture](architecture.qmd)** — Understand how the pipeline works under the hood
+- **[Installation](installation.qmd)** — the full environment variable reference.
+- **[Usage](usage.qmd)** — every CLI command and flag.
+- **[Evaluation](evaluation.qmd)** — how the verdicts get decided.
+- **[Architecture](architecture.qmd)** — how it's actually built.
