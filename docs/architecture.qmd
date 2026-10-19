@@ -1,6 +1,47 @@
 # Architecture
 
-Pytifex splits its work across two places: an LLM API for generating and refining code, and your local machine for everything that has to be objectively true — fetching GitHub issues, running the actual type checker binaries, and executing the generated code to see what happens at runtime.
+Pytifex is a hybrid system that orchestrates LLM-based code generation with
+local type-checker execution and objective two-phase evaluation. This page walks
+through every major subsystem so you can orient yourself in the codebase
+quickly.
+
+---
+
+## System Overview
+
+Pytifex splits work between two execution domains:
+
+| Domain | Responsibilities |
+|--------|-----------------|
+| **LLM API** | Code generation and refinement of non-divergent examples (Gemini, OpenAI, Cohere, or any OpenAI-compatible local server) |
+| **Local machine** | GitHub issue fetching, type-checker execution via `subprocess`, runtime crash detection, and Hypothesis property-based testing |
+
+> **Important:** Type-checker outputs are *real*. Every status comes from
+> actually invoking `mypy`, `pyrefly`, `ty`, and `zuban` in a subprocess —
+> never from LLM simulation.
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│                       LLM API                            │
+│  ┌─────────────┐  ┌────────────┐                         │
+│  │ Code Gen    │  │ Refinement │                         │
+│  └─────────────┘  └────────────┘                         │
+└────────────────────────┬─────────────────────────────────┘
+                         │ API calls
+┌────────────────────────▼─────────────────────────────────┐
+│                   Local Machine                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────────┐  │
+│  │ GitHub Issue │  │ Type Checker │  │  Two-Phase     │  │
+│  │   Mining     │  │  Execution   │  │  Evaluation    │  │
+│  └──────────────┘  └──────────────┘  └────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Pipeline Flow
+
+The core pipeline lives in `pipeline.py` and runs five sequential steps.
 
 The important thing to understand up front: **type checker output is always real**. Pytifex never asks an LLM to simulate what mypy or pyrefly would say. Every status in `results.json` comes from an actual subprocess call to the real binary.
 
@@ -61,20 +102,45 @@ def has_disagreement(results: dict[str, CheckerResult]) -> bool:
 
 ### Step 3 — refinement
 
-Examples where all four checkers agreed get sent back to the LLM along with the real checker output, with a prompt asking it to tweak the code minimally so it actually diverges. This runs up to `--max-refinements` times per example, feeding the latest refined attempt back in as context for the next one:
+All divergent examples are passed through a multi-phase evaluation system that
+determines which checker is correct. See the next section for details.
+
+---
+
+## Evaluation System (`comprehensive_eval.py`)
+
+Evaluation uses only objective runtime evidence — no heuristics, PEP pattern matching, or LLM judgements.
+
+### Phase 1 — Runtime Crash Detection
+
+Executes the source code and catches runtime exceptions that signal a genuine type error (`TypeError`, `KeyError`, `AttributeError`). The tool walks the **full traceback** including exception chains (`__cause__` / `__context__`) and isolates `try`/`except` bodies to surface swallowed errors.
+
+A crash proves a **false negative**: any checker that said "OK" is definitively wrong.
+
+**Confidence:** 0.95
+
+### Phase 2 — Hypothesis Property-Based Testing
+
+**Module:** `hypothesis_phase2.py`
+
+Extracts function signatures via AST inspection, builds [Hypothesis](https://hypothesis.readthedocs.io/) strategies from type hints, and runs `@given` tests with generated inputs.
 
 ```python
-for i in range(max_attempts):
-    prompt = build_refinement_prompt_for_example(current)
-    response = agent.predict(prompt)
-    refined = parse_into_example(response)
-    refined.results = run_all_checkers(refined.code)
-    if has_disagreement(refined.results):
-        return refined
-    current = refined  # next attempt refines this one, not the original
+# hypothesis_phase2.py (conceptual)
+sig = extract_signature(func_node)           # AST-based
+strategy = build_strategy_from_hints(sig)    # maps hints → st.*
+
+beartyped_fn = beartype(fn)                  # enforce input conformance at call time
+
+@given(strategy)
+def test(args):
+    result = beartyped_fn(*args)             # crash ⇒ false negative
+    check_type(result, return_hint)          # success ⇒ success witness
 ```
 
-### Step 4 — evaluation (`comprehensive_eval.py`)
+**False negatives (Phase 2a):** If a call crashes despite inputs being type-conformant (confirmed by [beartype](https://beartype.readthedocs.io/)), that is a proven type bug. Any checker that said "OK" missed it.
+
+**False positives (Phase 2b):** If calls succeed — beartype confirmed the inputs, execution completed, and the return type passed `typeguard.check_type()` — those calls are recorded as **success witnesses**. A success witness proves the code is well-typed; any checker that said "error" has a proven false positive.
 
 Every surviving disagreement gets run through a two-phase evaluation that decides which checker was correct. Covered in full on the [Evaluation](evaluation.qmd) page — short version: Phase 1 catches runtime crashes, Phase 2 uses Hypothesis + beartype to fuzz the actual functions with type-conformant inputs. (The code still names these `tier1`/`tier2` internally — see the note at the top of the Evaluation page.)
 

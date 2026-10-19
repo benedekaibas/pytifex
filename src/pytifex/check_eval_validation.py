@@ -156,8 +156,8 @@ def run_test(name: str, source: str, checker_configs: dict[str, dict], expected:
     passed = True
     print(f"\n{'='*60}")
     print(f"TEST: {name}")
-    print(f"  Tier reached: {result.tier_reached}")
-    print(f"  T1 bugs: {len(result.tier1_bugs)}, T2 bugs: {len(result.tier2_bugs)}, T3 findings: {len(result.tier3_findings)}")
+    print(f"  Phase reached: {result.phase_reached}")
+    print(f"  T1 bugs: {len(result.phase1_bugs)}, T2 bugs: {len(result.phase2_bugs)}, T3 findings: {len(result.phase3_findings)}")
 
     for checker, verdict_info in result.checker_verdicts.items():
         actual = verdict_info["verdict"]
@@ -268,7 +268,7 @@ def main():
 
     # Test 7: Errors on wrong lines (the verdict gap fix)
     ok = run_test(
-        "wrong_lines_tier2",
+        "wrong_lines_phase2",
         FILE_ASSIGN_MISMATCH,
         {
             "checker_near": {"has_errors": True, "error_lines": [4], "error_codes": ["assignment"]},
